@@ -30,6 +30,8 @@ import Particle from "../../Wolfie2D/Nodes/Graphics/Particle";
  * A const object for the layer names
  */
 export const MBLayers = {
+    // Optional level background layer
+    BACKGROUND: "LEVEL_BG",
     // The primary layer
     PRIMARY: "PRIMARY",
     // The UI layer
@@ -49,49 +51,59 @@ export default abstract class MBLevel extends Scene {
     public add: MBFactoryManager;
 
     /** The particle system used for the player's weapon */
-    protected playerWeaponSystem: PlayerWeapon
+    protected playerWeaponSystem!: PlayerWeapon
     /** The key for the player's animated sprite */
-    protected playerSpriteKey: string;
+    protected playerSpriteKey!: string;
     /** The animated sprite that is the player */
-    protected player: AnimatedSprite;
+    protected player!: AnimatedSprite;
     /** The player's spawn position */
-    protected playerSpawn: Vec2;
+    protected playerSpawn!: Vec2;
 
-    private healthLabel: Label;
-	private healthBar: Label;
-	private healthBarBg: Label;
+    private healthLabel!: Label;
+	private healthBar!: Label;
+	private healthBarBg!: Label;
 
 
     /** The end of level stuff */
 
-    protected levelEndPosition: Vec2;
-    protected levelEndHalfSize: Vec2;
+    protected levelEndPosition!: Vec2;
+    protected levelEndHalfSize!: Vec2;
 
-    protected levelEndArea: Rect;
-    protected nextLevel: new (...args: any) => Scene;
-    protected levelEndTimer: Timer;
-    protected levelEndLabel: Label;
+    protected levelEndArea!: Rect;
+    protected nextLevel!: new (...args: any) => Scene;
+    protected levelEndTimer!: Timer;
+    protected levelEndLabel!: Label;
 
     // Level end transition timer and graphic
-    protected levelTransitionTimer: Timer;
-    protected levelTransitionScreen: Rect;
+    protected levelTransitionTimer!: Timer;
+    protected levelTransitionScreen!: Rect;
 
     /** The keys to the tilemap and different tilemap layers */
-    protected tilemapKey: string;
-    protected destructibleLayerKey: string;
-    protected wallsLayerKey: string;
+    protected tilemapKey!: string;
+    protected destructibleLayerKey?: string;
+    protected wallsLayerKey!: string;
+    /** Optional scenic level background image key */
+    protected backgroundImageKey?: string;
+    /** Parallax amount for the optional scenic background image */
+    protected backgroundParallax: Vec2;
+    /** Depth for the optional scenic background image layer */
+    protected backgroundLayerDepth: number;
     /** The scale for the tilemap */
-    protected tilemapScale: Vec2;
+    protected tilemapScale!: Vec2;
     /** The destrubtable layer of the tilemap */
-    protected destructable: OrthogonalTilemap;
+    protected destructable?: OrthogonalTilemap;
     /** The wall layer of the tilemap */
-    protected walls: OrthogonalTilemap;
+    protected walls!: OrthogonalTilemap;
+
+    /** Out-of-bounds kill floor for instant death */
+    protected deathY!: number;
+    protected deathTriggered: boolean;
 
     /** Sound and music */
-    protected levelMusicKey: string;
-    protected jumpAudioKey: string;
-    protected tileDestroyedAudioKey: string;
-    protected dyingAudioKey: string;
+    protected levelMusicKey!: string;
+    protected jumpAudioKey!: string;
+    protected tileDestroyedAudioKey!: string;
+    protected dyingAudioKey!: string;
 
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, {...options, physics: {
@@ -106,11 +118,19 @@ export default abstract class MBLevel extends Scene {
                 ]
          }});
         this.add = new MBFactoryManager(this, this.tilemaps);
+        this.backgroundParallax = new Vec2(0.35, 1);
+        this.backgroundLayerDepth = -10;
+        this.deathTriggered = false;
     }
 
     public startScene(): void {
+        this.deathTriggered = false;
+
         // Initialize the layers
         this.initLayers();
+
+        // Initialize optional scenic background image
+        this.initializeBackground();
 
         // Initialize the tilemaps
         this.initializeTilemap();
@@ -149,7 +169,9 @@ export default abstract class MBLevel extends Scene {
         // Assign physics groups
         this.player.setGroup(MBPhysicsGroups.PLAYER);
         this.walls.setGroup(MBPhysicsGroups.GROUND);
-        this.destructable.setGroup(MBPhysicsGroups.DESTRUCTABLE);
+        if(this.destructable !== undefined){
+            this.destructable.setGroup(MBPhysicsGroups.DESTRUCTABLE);
+        }
         
         // Set up particle groups and triggers
         let particles = this.playerWeaponSystem.getPool();
@@ -158,7 +180,9 @@ export default abstract class MBLevel extends Scene {
         }
 
         // The destructible layer should trigger when hit by player weapon particles
-        this.destructable.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.PARTICLE_HIT, null);
+        if(this.destructable !== undefined){
+            this.destructable.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.PARTICLE_HIT, null);
+        }
 
     }
 
@@ -169,6 +193,8 @@ export default abstract class MBLevel extends Scene {
         while (this.receiver.hasNextEvent()) {
             this.handleEvent(this.receiver.getNextEvent());
         }
+
+        this.handleOutOfBoundsDeath();
     }
 
     public getDyingAudioKey() {
@@ -225,6 +251,10 @@ export default abstract class MBLevel extends Scene {
      * @param particleId the id of the particle
      */
     protected handleParticleHit(particleId: number): void {
+        if(this.destructable === undefined){
+            return;
+        }
+
         let particles = this.playerWeaponSystem.getPool();
 
         let particle = particles.find(particle => particle.id === particleId);
@@ -342,18 +372,66 @@ export default abstract class MBLevel extends Scene {
         // Add the tilemap to the scene
         this.add.tilemap(this.tilemapKey, this.tilemapScale);
 
-        if (this.destructibleLayerKey === undefined || this.wallsLayerKey === undefined) {
-            throw new Error("Make sure the keys for the destuctible layer and wall layer are both set");
+        if (this.wallsLayerKey === undefined) {
+            throw new Error("Make sure the key for the wall layer is set");
         }
 
-        // Get the wall and destructible layers 
+        // Get the wall layer 
         this.walls = this.getTilemap(this.wallsLayerKey) as OrthogonalTilemap;
-        this.destructable = this.getTilemap(this.destructibleLayerKey) as OrthogonalTilemap;
+        if(this.walls === null){
+            throw new Error(`Could not find wall tilemap layer \"${this.wallsLayerKey}\"`);
+        }
 
         // Add physicss to the wall layer
         this.walls.addPhysics();
-        // Add physics to the destructible layer of the tilemap
-        this.destructable.addPhysics();
+
+        // Compute an out-of-bounds death floor below the level bottom
+        const mapDimensions = this.walls.getDimensions();
+        const tileSize = this.walls.getTileSize();
+        this.deathY = mapDimensions.y * tileSize.y + 2 * tileSize.y;
+
+        // Add physics to the destructible layer of the tilemap, if one is configured
+        this.destructable = undefined;
+        if(this.destructibleLayerKey !== undefined){
+            if(this.destructibleLayerKey === this.wallsLayerKey){
+                throw new Error("Destructible and wall layer keys must be different if both are provided");
+            }
+
+            this.destructable = this.getTilemap(this.destructibleLayerKey) as OrthogonalTilemap;
+            if(this.destructable === null){
+                throw new Error(`Could not find destructible tilemap layer \"${this.destructibleLayerKey}\"`);
+            }
+
+            this.destructable.addPhysics();
+        }
+    }
+
+    /**
+     * Instantly kills the player if they fall below the map bounds.
+     */
+    protected handleOutOfBoundsDeath(): void {
+        if(this.deathTriggered || this.player === undefined){
+            return;
+        }
+
+        if(this.player.position.y > this.deathY){
+            this.deathTriggered = true;
+            this.emitter.fireEvent(MBEvents.PLAYER_DEAD);
+        }
+    }
+
+    /**
+     * Initializes an optional scenic background image.
+     */
+    protected initializeBackground(): void {
+        if(this.backgroundImageKey === undefined){
+            return;
+        }
+
+        this.addParallaxLayer(MBLayers.BACKGROUND, this.backgroundParallax, this.backgroundLayerDepth);
+        const bg = this.add.sprite(this.backgroundImageKey, MBLayers.BACKGROUND);
+        bg.scale.copy(this.tilemapScale);
+        bg.position.set((bg.size.x * bg.scale.x)/2, (bg.size.y * bg.scale.y)/2);
     }
     /**
      * Handles all subscriptions to events
@@ -513,7 +591,7 @@ export default abstract class MBLevel extends Scene {
         // Give the player it's AI
         this.player.addAI(PlayerController, { 
             weaponSystem: this.playerWeaponSystem, 
-            tilemap: "Destructable" 
+            tilemap: this.wallsLayerKey
         });
     }
     /**
@@ -524,7 +602,7 @@ export default abstract class MBLevel extends Scene {
             throw new Error("Player must be initialized before setting the viewport to folow the player");
         }
         this.viewport.follow(this.player);
-        this.viewport.setZoomLevel(4);
+        this.viewport.setZoomLevel(3);
         this.viewport.setBounds(0, 0, 512, 512);
     }
     /**

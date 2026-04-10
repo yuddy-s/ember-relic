@@ -5,5 +5,6 @@ export const MBControls = {
     MOVE_LEFT: "MOVE_LEFT",
     MOVE_RIGHT: "MOVE_RIGHT",
     JUMP: "JUMP",
-    ATTACK: "ATTACK"
+    ATTACK: "ATTACK",
+    DASH: "DASH"
 } as const;

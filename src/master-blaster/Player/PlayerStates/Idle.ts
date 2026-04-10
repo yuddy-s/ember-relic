@@ -19,12 +19,16 @@ export default class Idle extends PlayerState {
         // Get the direction of the player's movement
 		let dir = this.parent.inputDir;
 
+        // If the player starts a dash, transition to dash state
+		if (Input.isJustPressed(MBControls.DASH) && this.parent.canDash()) {
+            this.finished(PlayerStates.DASH);
+        }
         // If the player is moving along the x-axis, transition to the walking state
-		if (!dir.isZero() && dir.y === 0){
+		else if (!dir.isZero() && dir.y === 0){
 			this.finished(PlayerStates.WALK);
 		} 
         // If the player is jumping, transition to the jumping state
-        else if (Input.isJustPressed(MBControls.JUMP)) {
+        else if (this.parent.shouldStartJump()) {
             this.finished(PlayerStates.JUMP);
         }
         // If the player is not on the ground, transition to the falling state

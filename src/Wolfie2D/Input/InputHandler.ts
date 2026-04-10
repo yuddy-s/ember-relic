@@ -47,12 +47,22 @@ export default class InputHandler {
     }
 
     private handleKeyDown = (event: KeyboardEvent): void => {
+        if(this.shouldPreventKeyboardDefault(event)){
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
         let key = this.getKey(event);
         let gameEvent = new GameEvent(GameEventType.KEY_DOWN, {key: key});
         this.eventQueue.addEvent(gameEvent);
     }
 
     private handleKeyUp = (event: KeyboardEvent): void => {
+        if(this.shouldPreventKeyboardDefault(event)){
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
         let key = this.getKey(event);
         let gameEvent = new GameEvent(GameEventType.KEY_UP, {key: key});
         this.eventQueue.addEvent(gameEvent);
@@ -90,5 +100,18 @@ export default class InputHandler {
         let x = mouseEvent.clientX - rect.left;
         let y = mouseEvent.clientY - rect.top;
         return new Vec2(x, y);
+    }
+
+    private shouldPreventKeyboardDefault(event: KeyboardEvent): boolean {
+        const target = event.target as HTMLElement;
+        if(target){
+            const tagName = target.tagName;
+            if(tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT" || target.isContentEditable){
+                return false;
+            }
+        }
+
+        const key = event.key.toLowerCase();
+        return key === " " || key === "spacebar" || key === "arrowup" || key === "arrowdown" || key === "arrowleft" || key === "arrowright";
     }
 }

@@ -6,6 +6,7 @@ import Fall from "./PlayerStates/Fall";
 import Idle from "./PlayerStates/Idle";
 import Jump from "./PlayerStates/Jump";
 import Walk from "./PlayerStates/Walk";
+import Dash from "./PlayerStates/Dash";
 
 import PlayerWeapon from "./PlayerWeapon";
 import Input from "../../Wolfie2D/Input/Input";
@@ -57,6 +58,7 @@ export const PlayerStates = {
     WALK: "WALK",
 	JUMP: "JUMP",
     FALL: "FALL",
+    DASH: "DASH",
     TAKINGDAMAGE: "TAKINGDAMAGE",
     DYING: "DYING",
     DEAD: "DEAD",
@@ -66,8 +68,13 @@ export const PlayerStates = {
  * The controller that controls the player.
  */
 export default class PlayerController extends StateMachineAI {
-    public readonly MAX_SPEED: number = 200;
-    public readonly MIN_SPEED: number = 100;
+    public readonly MAX_SPEED: number = 240;
+    public readonly MIN_SPEED: number = 130;
+    public readonly DASH_SPEED: number = 500;
+
+    protected readonly DASH_DURATION: number = 0.14;
+    protected readonly COYOTE_TIME: number = 0.1;
+    protected readonly JUMP_BUFFER_TIME: number = 0.1;
 
     /** Health and max health for the player */
     protected _health: number;
@@ -83,6 +90,12 @@ export default class PlayerController extends StateMachineAI {
     // protected cannon: Sprite;
     protected weapon: PlayerWeapon;
 
+    protected dashTimer: number;
+    protected dashDirection: Vec2;
+    protected hasAirDashed: boolean;
+    protected coyoteTimer: number;
+    protected jumpBufferTimer: number;
+
     
     public initializeAI(owner: MBAnimatedSprite, options: Record<string, any>){
         this.owner = owner;
@@ -90,17 +103,24 @@ export default class PlayerController extends StateMachineAI {
         this.weapon = options.weaponSystem;
 
         this.tilemap = this.owner.getScene().getTilemap(options.tilemap) as OrthogonalTilemap;
-        this.speed = 400;
+        this.speed = this.MIN_SPEED;
         this.velocity = Vec2.ZERO;
+
+        this.dashTimer = 0;
+        this.dashDirection = Vec2.RIGHT;
+        this.hasAirDashed = false;
+        this.coyoteTimer = 0;
+        this.jumpBufferTimer = 0;
 
         this.health = 5
         this.maxHealth = 5;
 
         // Add the different states the player can be in to the PlayerController 
 		this.addState(PlayerStates.IDLE, new Idle(this, this.owner));
-		this.addState(PlayerStates.WALK, new Walk(this, this.owner));
+        this.addState(PlayerStates.WALK, new Walk(this, this.owner));
         this.addState(PlayerStates.JUMP, new Jump(this, this.owner));
         this.addState(PlayerStates.FALL, new Fall(this, this.owner));
+        this.addState(PlayerStates.DASH, new Dash(this, this.owner));
         this.addState(PlayerStates.TAKINGDAMAGE, new TakingDamage(this, this.owner));
         this.addState(PlayerStates.DYING, new Dying(this, this.owner));
         this.addState(PlayerStates.DEAD, new Dead(this, this.owner));
@@ -126,8 +146,21 @@ export default class PlayerController extends StateMachineAI {
     public update(deltaT: number): void {
 		super.update(deltaT);
 
+        if(Input.isJustPressed(MBControls.JUMP)){
+            this.jumpBufferTimer = this.JUMP_BUFFER_TIME;
+        } else {
+            this.jumpBufferTimer = Math.max(0, this.jumpBufferTimer - deltaT);
+        }
+
+        if(this.owner.onGround && !this.isDashing()){
+            this.hasAirDashed = false;
+            this.coyoteTimer = this.COYOTE_TIME;
+        } else {
+            this.coyoteTimer = Math.max(0, this.coyoteTimer - deltaT);
+        }
+
         // If the player hits the attack button and the weapon system isn't running, fire in the mouse direction.
-        if (Input.isJustPressed(MBControls.ATTACK) && !this.weapon.isSystemRunning()) {
+        if (!this.isDashing() && Input.isJustPressed(MBControls.ATTACK) && !this.weapon.isSystemRunning()) {
             this.weapon.setFireDirection(this.faceDir);
 
             // Start the particle system at the player's current position
@@ -137,6 +170,60 @@ export default class PlayerController extends StateMachineAI {
         }
 
 	}
+
+    public isDashing(): boolean {
+        return this.dashTimer > 0;
+    }
+
+    public canDash(): boolean {
+        return !this.isDashing() && !this.owner.onGround && !this.hasAirDashed;
+    }
+
+    public shouldStartJump(): boolean {
+        return !this.isDashing() && this.jumpBufferTimer > 0 && (this.owner.onGround || this.coyoteTimer > 0);
+    }
+
+    public consumeJumpBuffer(): void {
+        this.jumpBufferTimer = 0;
+        this.coyoteTimer = 0;
+    }
+
+    public beginDash(): boolean {
+        if(!this.canDash()){
+            return false;
+        }
+
+        const inputDirection = this.inputDir;
+        let dashX = inputDirection.x;
+        if(dashX === 0){
+            dashX = this.owner.invertX ? -1 : 1;
+        }
+
+        this.dashDirection = new Vec2(MathUtils.sign(dashX), 0);
+        this.dashTimer = this.DASH_DURATION;
+        this.hasAirDashed = true;
+        this.velocity.x = this.dashDirection.x * this.DASH_SPEED;
+        this.velocity.y = 0;
+        return true;
+    }
+
+    public updateDash(deltaT: number): void {
+        if(!this.isDashing()){
+            return;
+        }
+
+        const remainingDashTime = this.dashTimer;
+        const dashStep = Math.min(deltaT, remainingDashTime);
+        this.dashTimer = Math.max(0, remainingDashTime - deltaT);
+        this.velocity.x = this.dashDirection.x * this.DASH_SPEED;
+        this.velocity.y = 0;
+        this.owner.move(this.velocity.scaled(dashStep));
+    }
+
+    public endDash(): void {
+        this.dashTimer = 0;
+        this.velocity.x *= 0.35;
+    }
 
     public get velocity(): Vec2 { return this._velocity; }
     public set velocity(velocity: Vec2) { this._velocity = velocity; }

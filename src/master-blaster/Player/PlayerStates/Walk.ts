@@ -21,8 +21,12 @@ export default class Walk extends PlayerState {
 		if(dir.isZero()){
 			this.finished(PlayerStates.IDLE);
 		} 
+        // If the player starts a dash, transition to dash state
+        else if (Input.isJustPressed(MBControls.DASH) && this.parent.canDash()) {
+            this.finished(PlayerStates.DASH);
+        }
         // If the player hits the jump key - transition to the Jump state
-        else if (Input.isJustPressed(MBControls.JUMP)) {
+        else if (this.parent.shouldStartJump()) {
             this.finished(PlayerStates.JUMP);
         } 
         // If the player is not on the ground, transition to the fall state
@@ -33,7 +37,10 @@ export default class Walk extends PlayerState {
         else {
             // Update the vertical velocity of the player
             this.parent.velocity.y += this.gravity*deltaT; 
-            this.parent.velocity.x = dir.x * this.parent.speed
+            const targetSpeed = dir.x * this.parent.speed;
+            const isReversing = this.parent.velocity.x !== 0 && Math.sign(targetSpeed) !== Math.sign(this.parent.velocity.x);
+            const acceleration = Math.min(1, (isReversing ? 22 : 14) * deltaT);
+            this.parent.velocity.x += (targetSpeed - this.parent.velocity.x) * acceleration;
             this.owner.move(this.parent.velocity.scaled(deltaT));
         }
 

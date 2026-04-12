@@ -73,6 +73,7 @@ export default class PlayerController extends StateMachineAI {
     public readonly DASH_SPEED: number = 500;
 
     protected readonly DASH_DURATION: number = 0.14;
+    protected readonly DASH_COOLDOWN: number = 0.5;
     protected readonly COYOTE_TIME: number = 0.1;
     protected readonly JUMP_BUFFER_TIME: number = 0.1;
 
@@ -91,6 +92,7 @@ export default class PlayerController extends StateMachineAI {
     protected weapon: PlayerWeapon;
 
     protected dashTimer: number;
+    protected dashCooldownTimer: number;
     protected dashDirection: Vec2;
     protected hasAirDashed: boolean;
     protected coyoteTimer: number;
@@ -107,6 +109,7 @@ export default class PlayerController extends StateMachineAI {
         this.velocity = Vec2.ZERO;
 
         this.dashTimer = 0;
+        this.dashCooldownTimer = 0;
         this.dashDirection = Vec2.RIGHT;
         this.hasAirDashed = false;
         this.coyoteTimer = 0;
@@ -160,7 +163,7 @@ export default class PlayerController extends StateMachineAI {
         }
 
         // If the player hits the attack button and the weapon system isn't running, fire in the mouse direction.
-        if (!this.isDashing() && Input.isJustPressed(MBControls.ATTACK) && !this.weapon.isSystemRunning()) {
+        if (!this.isDashing() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
             this.weapon.setFireDirection(this.faceDir);
 
             // Start the particle system at the player's current position
@@ -169,6 +172,8 @@ export default class PlayerController extends StateMachineAI {
             this.owner.animation.queue(PlayerAnimations.IDLE);
         }
 
+    this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - deltaT);
+
 	}
 
     public isDashing(): boolean {
@@ -176,7 +181,7 @@ export default class PlayerController extends StateMachineAI {
     }
 
     public canDash(): boolean {
-        return !this.isDashing() && !this.owner.onGround && !this.hasAirDashed;
+        return !this.isDashing() && !this.hasAirDashed && this.dashCooldownTimer === 0;
     }
 
     public shouldStartJump(): boolean {
@@ -201,6 +206,7 @@ export default class PlayerController extends StateMachineAI {
 
         this.dashDirection = new Vec2(MathUtils.sign(dashX), 0);
         this.dashTimer = this.DASH_DURATION;
+        this.dashCooldownTimer = this.DASH_COOLDOWN;
         this.hasAirDashed = true;
         this.velocity.x = this.dashDirection.x * this.DASH_SPEED;
         this.velocity.y = 0;

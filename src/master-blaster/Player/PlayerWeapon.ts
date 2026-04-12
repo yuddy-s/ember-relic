@@ -15,20 +15,21 @@ import RandUtils from "../../Wolfie2D/Utils/RandUtils";
  */
 export default class PlayerWeapon extends ParticleSystem {
     /** Direction to fire particles when system starts (snapshotted on attack press). */
-    protected fireDirection: Vec2 = Vec2.RIGHT;
-
-    /** Max angle offset from fireDirection in radians. */
-    protected spread: number = Math.PI / 8;
+    protected slashDirection: Vec2 = Vec2.RIGHT;
+    protected slashRadius: number = 22;
+    protected slashArc: number = Math.PI / 2.5;
+    protected maxSlashThickness: number = 5;
 
     /**
      * Sets the direction particles should fire in on the next attack.
      * @param direction a world-space direction vector
      */
-    public setFireDirection(direction: Vec2): void {
-        if (!direction.isZero()) {
-            this.fireDirection = direction.clone().normalize();
-        }
+    public setSlashDirection(direction: Vec2): void {
+    if (!direction.isZero()) {
+        this.slashDirection = direction.clone().normalize();
     }
+}
+
 
     public getPool(): Readonly<Array<Particle>> {
         return this.particlePool;
@@ -44,16 +45,29 @@ export default class PlayerWeapon extends ParticleSystem {
      * @param particle the particle to give the animation to
      */
     public setParticleAnimation(particle: Particle) {
-        // Fire particles in the snapshot direction with a little random spread.
-        const speed = RandUtils.randFloat(100, 200);
-        const offset = RandUtils.randFloat(-this.spread, this.spread);
-        particle.vel = this.fireDirection.clone().rotateCCW(offset).normalize().scale(speed);
+        const baseAngle = Math.atan2(this.slashDirection.y, this.slashDirection.x);
+        const arcOffset = RandUtils.randFloat(-this.slashArc / 2, this.slashArc / 2);
+        const angle = baseAngle + arcOffset;
+
+        const normalized = Math.abs(arcOffset) / (this.slashArc / 2);
+        const centerWeight = 1 - normalized;
+
+        const shapedWeight = centerWeight * centerWeight * centerWeight;
+
+        const thickness = this.maxSlashThickness * shapedWeight;
+        const innerRadius = this.slashRadius - thickness / 2;
+        const outerRadius = this.slashRadius + thickness / 2;
+        const radius = RandUtils.randFloat(innerRadius, outerRadius);
+
+        const arcPos = new Vec2(Math.cos(angle) * radius, Math.sin(angle) * radius);
+
+        particle.position.copy(this.sourcePoint.clone().add(arcPos));
+        particle.vel = Vec2.ZERO;
         particle.color = Color.RED;
 
-        // Give the particle tweens
         particle.tweens.add("active", {
             startDelay: 0,
-            duration: this.lifetime,
+            duration: 260,
             effects: [
                 {
                     property: "alpha",

@@ -164,10 +164,11 @@ export default class PlayerController extends StateMachineAI {
 
         // If the player hits the attack button and the weapon system isn't running, fire in the mouse direction.
         if (!this.isDashing() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
-            this.weapon.setFireDirection(this.faceDir);
+            this.weapon.setSlashDirection(this.faceDir);
 
             // Start the particle system at the player's current position
-            this.weapon.startSystem(500, 0, this.owner.position);
+            const slashOrigin = this.owner.position.clone().add(this.faceDir.clone().normalize().scale(8));
+            this.weapon.startSystem(180, 0, slashOrigin);
             this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
             this.owner.animation.queue(PlayerAnimations.IDLE);
         }

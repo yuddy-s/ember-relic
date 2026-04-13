@@ -37,6 +37,20 @@ export default class MainMenu extends Scene {
         playBtn.setPadding(new Vec2(50, 10));
         playBtn.font = "PixelSimple";
 
+        let controlBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.MAIN, {position: new Vec2(size.x, size.y + 60), text: "Controls"});
+        controlBtn.backgroundColor = Color.TRANSPARENT;
+        controlBtn.borderColor = Color.WHITE;
+        controlBtn.borderRadius = 0;
+        controlBtn.setPadding(new Vec2(50, 10));
+        controlBtn.font = "PixelSimple";
+
+        let helpBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.MAIN, {position: new Vec2(size.x, size.y + 120), text: "Help"});
+        helpBtn.backgroundColor = Color.TRANSPARENT;
+        helpBtn.borderColor = Color.WHITE;
+        helpBtn.borderRadius = 0;
+        helpBtn.setPadding(new Vec2(50, 10));
+        helpBtn.font = "PixelSimple";
+
         // When the play button is clicked, go to the next scene
         playBtn.onClick = () => {
             import("./MBLevel1").then(({ default: Level1 }) => {

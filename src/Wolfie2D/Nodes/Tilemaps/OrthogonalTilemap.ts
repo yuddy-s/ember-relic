@@ -31,13 +31,36 @@ export default class OrthogonalTilemap extends Tilemap {
         // Whether the tilemap is collidable or not
         this.isCollidable = false;
         if(layer.properties){
+            const nonCollidableTiles: Array<number> = [];
+
             for(let item of layer.properties){
                 if(item.name === "Collidable"){
                     this.isCollidable = item.value;
 
-                    // Set all tiles besides "empty: 0" to be collidable
-                    for(let i = 1; i < this.collisionMap.length; i++){
-                        this.collisionMap[i] = true;
+                    if(this.isCollidable){
+                        // Set all tiles besides "empty: 0" to be collidable
+                        for(let i = 1; i < this.collisionMap.length; i++){
+                            this.collisionMap[i] = true;
+                        }
+                    }
+                } else if(item.name === "NonCollidableTiles"){
+                    if(typeof item.value === "number"){
+                        nonCollidableTiles.push(item.value);
+                    } else if(typeof item.value === "string"){
+                        for(const token of item.value.split(",")){
+                            const parsed = Number(token.trim());
+                            if(Number.isInteger(parsed)){
+                                nonCollidableTiles.push(parsed);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if(this.isCollidable){
+                for(const tileIndex of nonCollidableTiles){
+                    if(tileIndex >= 0 && tileIndex < this.collisionMap.length){
+                        this.collisionMap[tileIndex] = false;
                     }
                 }
             }
@@ -126,7 +149,7 @@ export default class OrthogonalTilemap extends Tilemap {
         // The value of the tile
         let tile = 0;
 
-        if(row){
+        if(row !== undefined){
             // We have a column and a row
             tile = this.getTileAtRowCol(new Vec2(indexOrCol, row));
 

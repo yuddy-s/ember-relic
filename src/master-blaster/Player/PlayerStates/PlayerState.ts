@@ -16,7 +16,7 @@ export default abstract class PlayerState extends State {
 	public constructor(parent: PlayerController, owner: MBAnimatedSprite){
 		super(parent);
 		this.owner = owner;
-        this.gravity = 500;
+        this.gravity = 740;
 	}
 
     public abstract onEnter(options: Record<string, any>): void;

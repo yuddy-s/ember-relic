@@ -34,8 +34,8 @@ export default class Fall extends PlayerState {
             const targetAirSpeed = dir.x * this.parent.speed * 0.9;
             const airAcceleration = Math.min(1, 8 * deltaT);
             this.parent.velocity.x += (targetAirSpeed - this.parent.velocity.x) * airAcceleration;
-            // Update the vertical velocity of the player
-            this.parent.velocity.y += this.gravity*deltaT;
+            // Keep descent a bit faster than ascent without feeling too heavy
+            this.parent.velocity.y += this.gravity * 1.35 * deltaT;
             // Move the player
             this.owner.move(this.parent.velocity.scaled(deltaT));
         }

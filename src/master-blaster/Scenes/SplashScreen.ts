@@ -66,9 +66,4 @@ export default class SplashScreen extends Scene {
             this.sceneManager.changeToScene(MainMenu);
         }
     }
-
-    public unloadScene(): void {
-    // The scene is being destroyed, so we can stop playing the song
-        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: SplashScreen.MUSIC_KEY});
-    }
 }

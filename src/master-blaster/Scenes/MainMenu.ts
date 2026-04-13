@@ -4,6 +4,7 @@ import Button from "../../Wolfie2D/Nodes/UIElements/Button";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import Color from "../../Wolfie2D/Utils/Color";
+import SplashScreen from "./SplashScreen";
 
 
 // Layers for the main menu scene
@@ -13,38 +14,43 @@ export const MenuLayers = {
 
 export default class MainMenu extends Scene {
 
-    public static readonly MUSIC_KEY = "MAIN_MENU_MUSIC";
-    public static readonly MUSIC_PATH = "game_assets/music/MB_menu_music.mp3";
+    public static readonly LOGO_KEY = "MAIN_MENU_LOGO";
+    public static readonly LOGO_PATH = "game_assets/art/Logo.png";
 
     public loadScene(): void {
-        // Load the menu song
-        this.load.audio(MainMenu.MUSIC_KEY, MainMenu.MUSIC_PATH);
+        // Load the menu logo
+        this.load.image(MainMenu.LOGO_KEY, MainMenu.LOGO_PATH);
     }
 
     public startScene(): void {
-        this.addUILayer(MenuLayers.MAIN);
+        this.addLayer(MenuLayers.MAIN);
+        this.addUILayer("UI");
 
         // Center the viewport
         let size = this.viewport.getHalfSize();
         this.viewport.setFocus(size);
         this.viewport.setZoomLevel(1);
 
+        const logo = this.add.sprite(MainMenu.LOGO_KEY, MenuLayers.MAIN);
+        logo.scale.set(0.7, 0.7);
+        logo.position.set(size.x, size.y - 130);
+
         // Create a play button
-        let playBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.MAIN, {position: new Vec2(size.x, size.y), text: "Play Game"});
+        let playBtn = <Button>this.add.uiElement(UIElementType.BUTTON, "UI", {position: new Vec2(size.x, size.y + 120), text: "Play Game"});
         playBtn.backgroundColor = Color.TRANSPARENT;
         playBtn.borderColor = Color.WHITE;
         playBtn.borderRadius = 0;
         playBtn.setPadding(new Vec2(50, 10));
         playBtn.font = "PixelSimple";
 
-        let controlBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.MAIN, {position: new Vec2(size.x, size.y + 60), text: "Controls"});
+        let controlBtn = <Button>this.add.uiElement(UIElementType.BUTTON, "UI", {position: new Vec2(size.x, size.y + 180), text: "Controls"});
         controlBtn.backgroundColor = Color.TRANSPARENT;
         controlBtn.borderColor = Color.WHITE;
         controlBtn.borderRadius = 0;
         controlBtn.setPadding(new Vec2(50, 10));
         controlBtn.font = "PixelSimple";
 
-        let helpBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.MAIN, {position: new Vec2(size.x, size.y + 120), text: "Help"});
+        let helpBtn = <Button>this.add.uiElement(UIElementType.BUTTON, "UI", {position: new Vec2(size.x, size.y + 240), text: "Help"});
         helpBtn.backgroundColor = Color.TRANSPARENT;
         helpBtn.borderColor = Color.WHITE;
         helpBtn.borderRadius = 0;
@@ -57,14 +63,11 @@ export default class MainMenu extends Scene {
                 this.sceneManager.changeToScene(Level1);
             });
         }
-
-        // Scene has started, so start playing music
-        this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: MainMenu.MUSIC_KEY, loop: true, holdReference: true});
     }
 
     public unloadScene(): void {
         // The scene is being destroyed, so we can stop playing the song
-        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: MainMenu.MUSIC_KEY});
+        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: SplashScreen.MUSIC_KEY});
     }
 }
 

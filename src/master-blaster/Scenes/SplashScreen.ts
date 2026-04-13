@@ -13,7 +13,7 @@ export const SplashLayers = {
 export default class SplashScreen extends Scene {
 
     public static readonly SPLASH_KEY = "SPLASH_IMAGE";
-    public static readonly SPLASH_PATH = "game_assets/art/SplashScreen.jpeg";
+    public static readonly SPLASH_PATH = "game_assets/art/Logo.png";
     public static readonly SPLASH_TEXT_KEY = "WORDS";
     public static readonly SPLASH_TEXT_PATH = "game_assets/art/ClickToContinue.jpeg";
     public static readonly MUSIC_KEY = "SPLASH_MUSIC";
@@ -33,8 +33,9 @@ export default class SplashScreen extends Scene {
         this.viewport.setFocus(size);
         this.viewport.setZoomLevel(1);
 
-        const bg = this.add.sprite(SplashScreen.SPLASH_KEY, SplashLayers.BG);
-        bg.position.set(size.x, size.y);
+        const logo = this.add.sprite(SplashScreen.SPLASH_KEY, SplashLayers.BG);
+        logo.scale.set(0.9,0.9);
+        logo.position.set(size.x, size.y - 70);
 
         const prompt = this.add.sprite(SplashScreen.SPLASH_TEXT_KEY, SplashLayers.FG);
         prompt.position.set(size.x, size.y + 300);
@@ -65,10 +66,5 @@ export default class SplashScreen extends Scene {
         if (Input.isMouseJustPressed()) {
             this.sceneManager.changeToScene(MainMenu);
         }
-    }
-
-    public unloadScene(): void {
-    // The scene is being destroyed, so we can stop playing the song
-        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: SplashScreen.MUSIC_KEY});
     }
 }

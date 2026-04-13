@@ -5,11 +5,14 @@ import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import Color from "../../Wolfie2D/Utils/Color";
 import SplashScreen from "./SplashScreen";
+import ControlsScreen from "./ControlsScreen";
+import HelpScreen from "./HelpScreen";
 
 
 // Layers for the main menu scene
 export const MenuLayers = {
-    MAIN: "MAIN"
+    MAIN: "MAIN",
+    UI: "UI"
 } as const;
 
 export default class MainMenu extends Scene {
@@ -24,7 +27,7 @@ export default class MainMenu extends Scene {
 
     public startScene(): void {
         this.addLayer(MenuLayers.MAIN);
-        this.addUILayer("UI");
+        this.addUILayer(MenuLayers.UI);
 
         // Center the viewport
         let size = this.viewport.getHalfSize();
@@ -36,21 +39,21 @@ export default class MainMenu extends Scene {
         logo.position.set(size.x, size.y - 130);
 
         // Create a play button
-        let playBtn = <Button>this.add.uiElement(UIElementType.BUTTON, "UI", {position: new Vec2(size.x, size.y + 120), text: "Play Game"});
+        let playBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.UI, {position: new Vec2(size.x, size.y + 120), text: "Play Game"});
         playBtn.backgroundColor = Color.TRANSPARENT;
         playBtn.borderColor = Color.WHITE;
         playBtn.borderRadius = 0;
         playBtn.setPadding(new Vec2(50, 10));
         playBtn.font = "PixelSimple";
 
-        let controlBtn = <Button>this.add.uiElement(UIElementType.BUTTON, "UI", {position: new Vec2(size.x, size.y + 180), text: "Controls"});
+        let controlBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.UI, {position: new Vec2(size.x, size.y + 180), text: "Controls"});
         controlBtn.backgroundColor = Color.TRANSPARENT;
         controlBtn.borderColor = Color.WHITE;
         controlBtn.borderRadius = 0;
         controlBtn.setPadding(new Vec2(50, 10));
         controlBtn.font = "PixelSimple";
 
-        let helpBtn = <Button>this.add.uiElement(UIElementType.BUTTON, "UI", {position: new Vec2(size.x, size.y + 240), text: "Help"});
+        let helpBtn = <Button>this.add.uiElement(UIElementType.BUTTON, MenuLayers.UI, {position: new Vec2(size.x, size.y + 240), text: "Help"});
         helpBtn.backgroundColor = Color.TRANSPARENT;
         helpBtn.borderColor = Color.WHITE;
         helpBtn.borderRadius = 0;
@@ -59,15 +62,21 @@ export default class MainMenu extends Scene {
 
         // When the play button is clicked, go to the next scene
         playBtn.onClick = () => {
+            this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: SplashScreen.MUSIC_KEY});
+
             import("./MBLevel1").then(({ default: Level1 }) => {
                 this.sceneManager.changeToScene(Level1);
             });
         }
-    }
 
-    public unloadScene(): void {
-        // The scene is being destroyed, so we can stop playing the song
-        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: SplashScreen.MUSIC_KEY});
+        controlBtn.onClick = () => {
+            this.sceneManager.changeToScene(ControlsScreen);
+        }
+
+        helpBtn.onClick = () => {
+            this.sceneManager.changeToScene(HelpScreen);
+        }
+
     }
 }
 

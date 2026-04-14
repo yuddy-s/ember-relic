@@ -236,14 +236,14 @@ export default class CanvasRenderer extends RenderingManager {
 
     // @override
     protected renderUIElement(uiElement: UIElement): void {
-        if(uiElement instanceof Label){
-            this.uiElementRenderer.renderLabel(uiElement);
+        if(uiElement instanceof TextInput){
+            this.uiElementRenderer.renderTextInput(uiElement);
         } else if(uiElement instanceof Button){
             this.uiElementRenderer.renderButton(uiElement);
         } else if(uiElement instanceof Slider){
             this.uiElementRenderer.renderSlider(uiElement);
-        } else if(uiElement instanceof TextInput){
-            this.uiElementRenderer.renderTextInput(uiElement);
+        } else if(uiElement instanceof Label){
+            this.uiElementRenderer.renderLabel(uiElement);
         }
     }
 

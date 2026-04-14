@@ -19,10 +19,14 @@ export default class MainMenu extends Scene {
 
     public static readonly LOGO_KEY = "MAIN_MENU_LOGO";
     public static readonly LOGO_PATH = "game_assets/art/Logo.png";
+    public static readonly MUSIC_KEY = "MAIN_MENU_MUSIC";
+    public static readonly MUSIC_PATH = "game_assets/music/MB_menu_music.mp3";
 
     public loadScene(): void {
         // Load the menu logo
         this.load.image(MainMenu.LOGO_KEY, MainMenu.LOGO_PATH);
+        this.load.audio(MainMenu.MUSIC_KEY, MainMenu.MUSIC_PATH);
+
     }
 
     public startScene(): void {
@@ -77,6 +81,13 @@ export default class MainMenu extends Scene {
             this.sceneManager.changeToScene(HelpScreen);
         }
 
+        this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: MainMenu.MUSIC_KEY, loop: true, holdReference: true});
+
+    }
+
+    public unloadScene(): void {
+        // The scene is being destroyed, so we can stop playing the song
+        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: MainMenu.MUSIC_KEY});
     }
 }
 

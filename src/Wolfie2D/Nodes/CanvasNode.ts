@@ -29,6 +29,7 @@ export default abstract class CanvasNode extends GameNode implements Region {
 		this.updateBoundary();
 
 		this._hasCustomShader = false;
+		this._alpha = 1;
 	}
 
 	get alpha(): number {

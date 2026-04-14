@@ -304,7 +304,7 @@ export default class Input {
 	 * @returns The mouse position stored as a Vec2
 	 */
 	static getMousePressPosition(): Vec2 {
-		return Input.mousePressPosition;
+		return Input.mousePressPosition.scaled(1 / this.viewport.getZoomLevel());
 	}
 
 	/**
@@ -313,7 +313,7 @@ export default class Input {
 	 * @returns The mouse position stored as a Vec2
 	 */
 	static getGlobalMousePressPosition(): Vec2 {
-		return Input.mousePressPosition.clone().add(Input.viewport.getOrigin());
+		return Input.mousePressPosition.clone().scale(1 / this.viewport.getZoomLevel()).add(Input.viewport.getOrigin());
 	}
 
 	/**

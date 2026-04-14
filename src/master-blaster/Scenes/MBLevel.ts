@@ -3,12 +3,15 @@ import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
 import GameEvent from "../../Wolfie2D/Events/GameEvent";
 import { GameEventType } from "../../Wolfie2D/Events/GameEventType";
 import Input from "../../Wolfie2D/Input/Input";
+import CanvasNode from "../../Wolfie2D/Nodes/CanvasNode";
 import { TweenableProperties } from "../../Wolfie2D/Nodes/GameNode";
 import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
 import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import AnimatedSprite from "../../Wolfie2D/Nodes/Sprites/AnimatedSprite";
 import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
-import Label from "../../Wolfie2D/Nodes/UIElements/Label";
+import Button from "../../Wolfie2D/Nodes/UIElements/Button";
+import Label, { HAlign } from "../../Wolfie2D/Nodes/UIElements/Label";
+import TextInput from "../../Wolfie2D/Nodes/UIElements/TextInput";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
@@ -24,6 +27,7 @@ import { MBEvents } from "../MBEvents";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import MBFactoryManager from "../Factory/MBFactoryManager";
 import MainMenu from "./MainMenu";
+
 import Particle from "../../Wolfie2D/Nodes/Graphics/Particle";
 
 /**
@@ -35,7 +39,8 @@ export const MBLayers = {
     // The primary layer
     PRIMARY: "PRIMARY",
     // The UI layer
-    UI: "UI"
+    UI: "UI",
+    PAUSE: "PAUSE"
 } as const;
 
 // The layers as a type
@@ -105,6 +110,24 @@ export default abstract class MBLevel extends Scene {
     protected tileDestroyedAudioKey!: string;
     protected dyingAudioKey!: string;
 
+    protected pauseMenuOpen: boolean;
+    protected pauseControlsOpen: boolean;
+
+    private pauseControlsButton!: Button;
+    private pauseControlsPanel!: Rect;
+    private pauseCheatInput!: TextInput;
+    private pauseControlsElements: Array<CanvasNode>;
+    private pauseMenuElements: Array<CanvasNode>;
+
+    protected static readonly PAUSE_CONTROLS: Array<[string, string]> = [
+        ["A / D", "Move Left / Right"],
+        ["W / Space", "Jump"],
+        ["Shift", "Dash"],
+        ["Left Click", "Attack"],
+        ["E", "Interact"],
+        ["ESC", "Pause / Unpause"]
+    ];
+
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, {...options, physics: {
             // TODO configure the collision groups and collision map
@@ -121,6 +144,10 @@ export default abstract class MBLevel extends Scene {
         this.backgroundParallax = new Vec2(0.35, 1);
         this.backgroundLayerDepth = -10;
         this.deathTriggered = false;
+        this.pauseMenuOpen = false;
+        this.pauseControlsOpen = false;
+        this.pauseControlsElements = new Array();
+        this.pauseMenuElements = new Array();
     }
 
     public startScene(): void {
@@ -145,6 +172,7 @@ export default abstract class MBLevel extends Scene {
 
         // Initialize the viewport - this must come after the player has been initialized
         this.initializeViewport();
+        this.initializePauseMenuUI();
         this.subscribeToEvents();
         
 
@@ -189,16 +217,156 @@ export default abstract class MBLevel extends Scene {
     /* Update method for the scene */
 
     public updateScene(deltaT: number) {
+        this.handlePauseInput();
+
         // Handle all game events
         while (this.receiver.hasNextEvent()) {
             this.handleEvent(this.receiver.getNextEvent());
         }
 
-        this.handleOutOfBoundsDeath();
+        if(!this.pauseMenuOpen){
+            this.handleOutOfBoundsDeath();
+        }
     }
 
     public getDyingAudioKey() {
         return this.dyingAudioKey;
+    }
+
+    protected handlePauseInput(): void {
+        if(Input.isKeyJustPressed("escape")){
+            this.setPauseMenuOpen(!this.pauseMenuOpen);
+            return;
+        }
+
+        if(this.pauseMenuOpen && this.pauseCheatInput.focused && Input.isKeyJustPressed("enter")){
+            void this.executePauseCheatCode(this.pauseCheatInput.text);
+        }
+    }
+
+    protected setPauseMenuOpen(paused: boolean): void {
+        if(this.pauseMenuOpen === paused){
+            return;
+        }
+
+        this.pauseMenuOpen = paused;
+
+        const pauseLayer = this.getLayer(MBLayers.PAUSE);
+        if(paused){
+            pauseLayer.enable();
+            this.setGameplayPaused(true);
+        } 
+        else {
+            this.pauseCheatInput.focused = false;
+            this.showPauseControls(false);
+            pauseLayer.disable();
+            this.setGameplayPaused(false);
+        }
+    }
+
+    protected setGameplayPaused(paused: boolean): void {
+        this.getLayer(MBLayers.PRIMARY).setPaused(paused);
+
+        if(this.parallaxLayers.has(MBLayers.BACKGROUND)){
+            this.getLayer(MBLayers.BACKGROUND).setPaused(paused);
+        }
+
+        if(this.player !== undefined){
+            this.player.setAIActive(!paused, {});
+
+            if(paused){
+                this.player.freeze();
+                this.player.disablePhysics();
+            }
+            else {
+                this.player.unfreeze();
+                this.player.enablePhysics();
+            }
+        }
+
+        if(this.levelEndArea !== undefined){
+            if(paused){
+                this.levelEndArea.disablePhysics();
+            }
+            else {
+                this.levelEndArea.enablePhysics();
+            }
+        }
+
+         if(this.playerWeaponSystem !== undefined){
+            if(paused){
+                this.playerWeaponSystem.pause();
+            } else {
+                this.playerWeaponSystem.resume();
+            }
+        }
+
+        for(const particle of this.playerWeaponSystem.getPool()){
+            if(!particle.inUse){
+                continue;
+            }
+
+            if(paused){
+                particle.freeze();
+                particle.disablePhysics();
+            } else {
+                particle.unfreeze();
+                particle.enablePhysics();
+            }
+        }
+
+        if(this.levelEndTimer !== undefined){
+            if(paused && !this.levelEndTimer.isStopped()){
+                this.levelEndTimer.pause();
+            } else if(!paused && this.levelEndTimer.isPaused()){
+                this.levelEndTimer.resume();
+            }
+        }
+
+        if(this.levelTransitionTimer !== undefined){
+            if(paused && !this.levelTransitionTimer.isStopped()){
+                this.levelTransitionTimer.pause();
+            } else if(!paused && this.levelTransitionTimer.isPaused()){
+                this.levelTransitionTimer.resume();
+            }
+        }
+
+    }
+
+    protected showPauseControls(visible: boolean): void {
+        this.pauseControlsOpen = visible;
+        this.pauseCheatInput.focused = false;
+
+        for(const element of this.pauseControlsElements){
+            element.visible = visible;
+        }
+
+        for(const element of this.pauseMenuElements){
+            element.visible = !visible;
+        }
+    }
+
+    protected async executePauseCheatCode(rawCode: string): Promise<void> {
+        const code = rawCode.trim().toUpperCase();
+
+        switch(code){
+            case "EMBERSKIP1":
+                break;
+            case "EMBERSKIP2":
+                break;
+            case "EMBERSKIP3":
+                break;
+            case "EMBERSKIP4":
+                break;
+            case "GODMODE":
+                break;
+            case "KILLBOSS":
+                break;
+            case "HEARTHUNLOCK":
+                break;
+            default:
+                break;
+        }
     }
 
     /**
@@ -357,8 +525,10 @@ export default abstract class MBLevel extends Scene {
     protected initLayers(): void {
         // Add a layer for UI
         this.addUILayer(MBLayers.UI);
+        this.addUILayer(MBLayers.PAUSE);
         // Add a layer for players and enemies
         this.addLayer(MBLayers.PRIMARY);
+        this.getLayer(MBLayers.PAUSE).disable();
     }
     /**
      * Initializes the tilemaps
@@ -524,6 +694,140 @@ export default abstract class MBLevel extends Scene {
             onEnd: MBEvents.LEVEL_START
         });
     }
+
+    protected initializePauseMenuUI(): void {
+        const size = this.viewport.getHalfSize();
+        const viewSize = size.scaled(2);
+        const viewportPosition = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
+        const viewportGraphicSize = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
+
+        const overlay = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
+            position: size.clone(),
+            size: viewSize
+        });
+        overlay.color = new Color(12, 10, 18, 0.82);
+
+        const titleBox = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
+            position: viewportPosition(600, 100),
+            size: viewportGraphicSize(320, 70)
+        });
+        titleBox.color = new Color(20, 18, 24, 0.85);
+        titleBox.borderColor = Color.WHITE;
+        this.pauseMenuElements.push(titleBox);
+
+        const title = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+            position: viewportPosition(600, 100),
+            text: "PAUSED"
+        });
+        title.textColor = Color.WHITE;
+        title.font = "PixelSimple";
+        title.fontSize = 40;
+        this.pauseMenuElements.push(title);
+
+        const buttonX = viewportPosition(600, 0).x;
+        const continueButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 280).y), "Continue", () => this.setPauseMenuOpen(false));
+        this.pauseMenuElements.push(continueButton);
+
+        this.pauseControlsButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 355).y), "Controls", () => {
+            this.showPauseControls(!this.pauseControlsOpen);
+        });
+        this.pauseMenuElements.push(this.pauseControlsButton);
+
+        const quitButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 430).y), "Quit", () => {
+            this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
+            this.sceneManager.changeToScene(MainMenu);
+        });
+        this.pauseMenuElements.push(quitButton);
+
+        this.pauseControlsPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
+            position: viewportPosition(600, 355),
+            size: viewportGraphicSize(760, 420)
+        });
+        this.pauseControlsPanel.color = new Color(20, 18, 24, 1);
+        this.pauseControlsPanel.borderColor = Color.WHITE;
+        this.pauseControlsPanel.visible = false;
+        this.pauseControlsElements.push(this.pauseControlsPanel);
+
+        const controlsTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+            position: viewportPosition(600, 170),
+            text: "CONTROLS"
+        });
+        controlsTitle.textColor = Color.WHITE;
+        controlsTitle.font = "PixelSimple";
+        controlsTitle.visible = false;
+        this.pauseControlsElements.push(controlsTitle);
+
+        const leftX = viewportPosition(420, 0).x;
+        const rightX = viewportPosition(780, 0).x;
+        const startY = viewportPosition(0, 220).y;
+        const stepY = viewSize.y * (55 / 800);
+
+        MBLevel.PAUSE_CONTROLS.forEach((entry, index) => {
+            const y = startY + index * stepY;
+
+            const left = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+                position: new Vec2(leftX, y),
+                text: entry[0]
+            });
+            left.textColor = Color.WHITE;
+            left.font = "PixelSimple";
+            left.visible = false;
+            this.pauseControlsElements.push(left);
+
+            const right = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+                position: new Vec2(rightX, y),
+                text: entry[1]
+            });
+            right.textColor = Color.WHITE;
+            right.font = "PixelSimple";
+            right.visible = false;
+            this.pauseControlsElements.push(right);
+        });
+
+        const backButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 610).y), "Back", () => {
+            this.showPauseControls(false);
+        });
+        backButton.visible = false;
+        this.pauseControlsElements.push(backButton);
+
+        const cheatTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+            position: viewportPosition(600, 665),
+            text: "Cheat Codes"
+        });
+        cheatTitle.textColor = Color.WHITE;
+        cheatTitle.font = "PixelSimple";
+        cheatTitle.fontSize = 22;
+        cheatTitle.size.set(260, 30);
+        this.pauseMenuElements.push(cheatTitle);
+
+        this.pauseCheatInput = <TextInput>this.add.uiElement(UIElementType.TEXT_INPUT, MBLayers.PAUSE, {
+            position: viewportPosition(600, 720)
+        });
+        this.pauseCheatInput.size.set(320, 42);
+        this.pauseCheatInput.font = "PixelSimple";
+        this.pauseCheatInput.fontSize = 22;
+        this.pauseCheatInput.backgroundColor = new Color(255, 255, 255, 1);
+        this.pauseCheatInput.borderColor = Color.WHITE;
+        this.pauseCheatInput.borderRadius = 0;
+        this.pauseMenuElements.push(this.pauseCheatInput);
+        
+    }
+
+    protected initializePauseButton(position: Vec2, text: string, onClick: () => void): Button {
+        const button = <Button>this.add.uiElement(UIElementType.BUTTON, MBLayers.PAUSE, {
+            position: position,
+            text: text
+        });
+        button.backgroundColor = Color.TRANSPARENT;
+        button.borderColor = Color.WHITE;
+        button.borderRadius = 0;
+        button.setPadding(new Vec2(50, 10));
+        button.font = "PixelSimple";
+        button.fontSize = 24;
+        button.onClick = onClick;
+        return button;
+    }
+
     /**
      * Initializes the particles system used by the player's weapon.
      */

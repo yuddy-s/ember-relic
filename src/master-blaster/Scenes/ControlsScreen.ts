@@ -62,7 +62,7 @@ export default class ControlsScreen extends Scene {
             ["Shift", "Dash"],
             ["Left Click", "Attack"],
             ["E", "Interact"],
-            ["ESC", "Pause"]
+            ["ESC", "Pause / Unpause"]
         ];
 
         controls.forEach((entry, i) => {

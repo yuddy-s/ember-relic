@@ -25,6 +25,7 @@ export default class ParticleSystem implements Updateable {
     protected systemLifetime: Timer;
 
     protected systemRunning: boolean;
+    protected paused: boolean;
 
     protected color: Color = new Color(255, 0, 0);
 
@@ -52,6 +53,7 @@ export default class ParticleSystem implements Updateable {
         this.lifetime = lifetime;
         this.particleSize = new Vec2(size, size);
         this.systemRunning = false;
+        this.paused = false;
         this.particlesPerFrame = maxParticlesPerFrame;
         this.particlesToRender = this.particlesPerFrame;
         this.particleMass = mass;
@@ -98,10 +100,27 @@ export default class ParticleSystem implements Updateable {
 
     stopSystem() {
         this.systemRunning = false;
+        this.paused = false;
         for (let particle of this.particlePool) {
             if (particle.inUse) {
                 particle.setParticleInactive();
             }
+        }
+    }
+
+    pause(): void {
+        this.paused = true;
+
+        if(this.systemLifetime !== undefined && !this.systemLifetime.isStopped()){
+            this.systemLifetime.pause();
+        }
+    }
+
+    resume(): void {
+        this.paused = false;
+
+        if(this.systemLifetime !== undefined && this.systemLifetime.isPaused()){
+            this.systemLifetime.resume();
         }
     }
 
@@ -129,6 +148,11 @@ export default class ParticleSystem implements Updateable {
         if (!this.systemRunning) {
             return;
         }
+
+        if(this.paused){
+            return;
+        }
+
         // Stop the system if our timer is up
         if (this.systemLifetime.isStopped()) {
             this.stopSystem();

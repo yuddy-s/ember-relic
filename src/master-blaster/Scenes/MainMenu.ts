@@ -80,14 +80,6 @@ export default class MainMenu extends Scene {
         helpBtn.onClick = () => {
             this.sceneManager.changeToScene(HelpScreen);
         }
-
-        this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: MainMenu.MUSIC_KEY, loop: true, holdReference: true});
-
-    }
-
-    public unloadScene(): void {
-        // The scene is being destroyed, so we can stop playing the song
-        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: MainMenu.MUSIC_KEY});
     }
 }
 

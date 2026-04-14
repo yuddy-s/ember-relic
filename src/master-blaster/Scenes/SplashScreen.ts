@@ -68,8 +68,4 @@ export default class SplashScreen extends Scene {
         }
     }
 
-    public unloadScene(): void {
-        // The scene is being destroyed, so we can stop playing the song
-        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: SplashScreen.MUSIC_KEY});
-    }
 }

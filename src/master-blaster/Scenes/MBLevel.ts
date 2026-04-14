@@ -29,6 +29,7 @@ import MBFactoryManager from "../Factory/MBFactoryManager";
 import MainMenu from "./MainMenu";
 
 import Particle from "../../Wolfie2D/Nodes/Graphics/Particle";
+import SplashScreen from "./SplashScreen";
 
 /**
  * A const object for the layer names
@@ -735,7 +736,7 @@ export default abstract class MBLevel extends Scene {
 
         const quitButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 430).y), "Quit", () => {
             this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
-            this.sceneManager.changeToScene(MainMenu);
+            this.sceneManager.changeToScene(SplashScreen);
         });
         this.pauseMenuElements.push(quitButton);
 

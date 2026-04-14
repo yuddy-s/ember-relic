@@ -14,7 +14,7 @@ export default class Level1 extends MBLevel {
 
     public static readonly PLAYER_SPAWN = new Vec2(32, 304);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
-    public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/zekrom.json";
+    public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 
     public static readonly TILEMAP_KEY = "HEARTHHOLD_LEVEL";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/hearthholdnew.json";

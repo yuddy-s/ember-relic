@@ -28,15 +28,10 @@ import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
  */
 export const PlayerAnimations = {
     IDLE: "IDLE",
-    WALK_LEFT: "WALK_LEFT",
     WALK_RIGHT: "WALK_RIGHT",
-    JUMP_LEFT: "JUMP_LEFT",
     JUMP_RIGHT: "JUMP_RIGHT",
-    FALL_LEFT: "FALL_LEFT",
     FALL_RIGHT: "FALL_RIGHT",
-    TAKE_DAMAGE_LEFT: "TAKE_DAMAGE_LEFT",
     TAKE_DAMAGE_RIGHT: "TAKE_DAMAGE_RIGHT",
-    ATTACK_LEFT: "ATTACK_LEFT",
     ATTACK_RIGHT: "ATTACK_RIGHT",
     DYING: "DYING",
     DEAD: "DEAD",

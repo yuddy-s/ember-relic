@@ -850,7 +850,7 @@ export default abstract class MBLevel extends Scene {
 
         // Add the player to the scene
         this.player = this.add.animatedSprite(key, MBLayers.PRIMARY);
-        this.player.scale.set(0.125, 0.125);
+        this.player.scale.set(1, 1);
         this.player.position.copy(this.playerSpawn);
         
         // Give the player physics

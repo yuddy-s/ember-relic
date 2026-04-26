@@ -17,13 +17,13 @@ export default class Level1 extends MBLevel {
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 
     public static readonly TILEMAP_KEY = "HEARTHHOLD_LEVEL";
-    public static readonly TILEMAP_PATH = "game_assets/tilemaps/hearthholdnew.json";
+    public static readonly TILEMAP_PATH = "game_assets/tilemaps/tutorial.json";
     public static readonly TILEMAP_SCALE = new Vec2(1, 1);
     public static readonly DESTRUCTIBLE_LAYER_KEY = undefined;
     public static readonly WALLS_LAYER_KEY = "Platforms";
 
     public static readonly BACKGROUND_IMAGE_KEY = "HEARTHHOLD_BACKGROUND";
-    public static readonly BACKGROUND_IMAGE_PATH = "game_assets/tilemaps/newbg.png";
+    public static readonly BACKGROUND_IMAGE_PATH = "game_assets/tilemaps/tutorialBg.png";
     public static readonly BACKGROUND_PARALLAX = new Vec2(1, 1);
 
     public static readonly TILEMAP_WIDTH_TILES = 120;

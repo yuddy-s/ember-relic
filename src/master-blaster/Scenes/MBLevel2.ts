@@ -12,13 +12,13 @@ import SceneManager from "../../Wolfie2D/Scene/SceneManager";
  */
 export default class Level2 extends MBLevel {
 
-    public static readonly PLAYER_SPAWN = new Vec2(32, 32);
+    public static readonly PLAYER_SPAWN = new Vec2(1536, 752);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/Hero.json";
 
     public static readonly TILEMAP_KEY = "LEVEL2";
-    public static readonly TILEMAP_PATH = "game_assets/tilemaps/MBLevel2.json";
-    public static readonly TILEMAP_SCALE = new Vec2(2, 2);
+    public static readonly TILEMAP_PATH = "game_assets/tilemaps/cave.json";
+    public static readonly TILEMAP_SCALE = new Vec2(1, 1);
     public static readonly DESTRUCTIBLE_LAYER_KEY = "Destructable";
     public static readonly WALLS_LAYER_KEY = "Main";
 
@@ -83,5 +83,15 @@ export default class Level2 extends MBLevel {
     public getDyingAudioKey() {
         return this.dyingAudioKey;
     }
+
+    protected initializeViewport(): void {
+    super.initializeViewport();
+    this.viewport.setZoomLevel(3);
+
+    const worldWidth = 224 * 16 * this.tilemapScale.x;
+    const worldHeight = 80 * 16 * this.tilemapScale.y;
+    this.viewport.setBounds(0, 0, worldWidth, worldHeight);
+    }
+
 
 }

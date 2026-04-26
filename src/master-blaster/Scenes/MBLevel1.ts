@@ -3,9 +3,11 @@ import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
 import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
 import MBLevel from "./MBLevel";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
+import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
 import MBLevel2 from "./MBLevel2";
+import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 
 /**
  * The first level for Master Blaster - should be the one with the grass and the clouds.
@@ -80,6 +82,8 @@ export default class Level1 extends MBLevel {
         this.load.tilemap(this.tilemapKey, Level1.TILEMAP_PATH);
         // Load in the player's sprite
         this.load.spritesheet(this.playerSpriteKey, Level1.PLAYER_SPRITE_PATH);
+        // Temporary upgrade icon for inventory UI testing
+        this.load.image(MBLevel.LANTERN_ICON_KEY, MBLevel.LANTERN_ICON_PATH);
         // Load level background image
         this.load.image(Level1.BACKGROUND_IMAGE_KEY, Level1.BACKGROUND_IMAGE_PATH);
         // Audio and music
@@ -133,6 +137,17 @@ export default class Level1 extends MBLevel {
         const tiledBackground = this.getTilemap("Background") as OrthogonalTilemap;
         if(tiledBackground !== null){
             tiledBackground.visible = false;
+        }
+    }
+
+    protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
+        switch(targetSceneId){
+            case ProgressTargetSceneId.LEVEL_1:
+                return Level1;
+            case ProgressTargetSceneId.LEVEL_2:
+                return MBLevel2;
+            default:
+                return null;
         }
     }
 

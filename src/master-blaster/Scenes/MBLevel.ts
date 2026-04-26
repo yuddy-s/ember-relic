@@ -8,9 +8,10 @@ import { TweenableProperties } from "../../Wolfie2D/Nodes/GameNode";
 import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
 import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import AnimatedSprite from "../../Wolfie2D/Nodes/Sprites/AnimatedSprite";
+import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
 import Button from "../../Wolfie2D/Nodes/UIElements/Button";
-import Label, { HAlign } from "../../Wolfie2D/Nodes/UIElements/Label";
+import Label from "../../Wolfie2D/Nodes/UIElements/Label";
 import TextInput from "../../Wolfie2D/Nodes/UIElements/TextInput";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
@@ -26,6 +27,10 @@ import PlayerWeapon from "../Player/PlayerWeapon";
 import { MBEvents } from "../MBEvents";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import MBFactoryManager from "../Factory/MBFactoryManager";
+import { BossHandle } from "../Bosses/BossHandle";
+import { executeCheatCode } from "../Cheats/MBCheatCodes";
+import { MBProgress, UPGRADE_METADATA, UPGRADE_ORDER, UpgradeId } from "../Progress/MBProgress";
+import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import MainMenu from "./MainMenu";
 
 import Particle from "../../Wolfie2D/Nodes/Graphics/Particle";
@@ -68,6 +73,15 @@ export default abstract class MBLevel extends Scene {
     private healthLabel!: Label;
 	private healthBar!: Label;
 	private healthBarBg!: Label;
+    private hudInventorySlots: Array<Label>;
+    private hudInventoryIcons: Array<Sprite>;
+    private pauseInventorySlots: Array<Button>;
+    private pauseInventoryIcons: Array<Sprite>;
+    private pauseInventoryPopupPanel!: Rect;
+    private pauseInventoryPopupTitle!: Label;
+    private pauseInventoryPopupLines: Array<Label>;
+    private currentSelectedUpgradeId: UpgradeId | null;
+    protected boss?: BossHandle;
 
 
     /** The end of level stuff */
@@ -129,6 +143,54 @@ export default abstract class MBLevel extends Scene {
         ["ESC", "Pause / Unpause"]
     ];
 
+    protected static readonly LANTERN_ICON_KEY = "UPGRADE_ICON_LANTERN";
+    protected static readonly LANTERN_ICON_PATH = "game_assets/art/upgrades/lantern.png";
+    
+    // HUD TUNING"
+    // Change these values to adjust the in-game health bar and quick-slot row.
+    protected static readonly HUD_TUNING = {
+        left: 18,
+        healthBarTop: 16,
+        healthBarWidth: 300,
+        healthBarHeight: 16,
+        inventoryOffsetY: 30,
+        slotSize: 20,
+        slotGap: 35,
+        iconSize: 18,
+        healthBarRadius: 1,
+        slotRadius: 6
+    };
+
+    // PAUSE TUNING
+    // Change these values to adjust the pause menu layout without digging through UI creation code.
+    protected static readonly PAUSE_TUNING = {
+        titleCenterX: 600,
+        titleY: 100,
+        buttonCenterX: 600,
+        continueY: 270,
+        controlsY: 345,
+        quitY: 420,
+        inventoryCenterX: 170,
+        inventoryPanelCenterY: 400,
+        inventoryPanelWidth: 240,
+        inventoryPanelHeight: 700,
+        inventoryTitleY: 92,
+        inventorySubtitleY: 126,
+        inventorySlotStartY: 172,
+        inventorySlotStepY: 50,
+        inventorySlotSize: 70,
+        inventoryIconSize: 58,
+        popupCenterX: 600,
+        popupCenterY: 350,
+        popupWidth: 400,
+        popupHeight: 220,
+        popupTitleY: 282,
+        popupLineStartY: 330,
+        popupLineStepY: 26,
+        cheatTitleY: 600,
+        cheatInputY: 655
+    };
+
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, {...options, physics: {
             // TODO configure the collision groups and collision map
@@ -149,6 +211,17 @@ export default abstract class MBLevel extends Scene {
         this.pauseControlsOpen = false;
         this.pauseControlsElements = new Array();
         this.pauseMenuElements = new Array();
+        this.hudInventorySlots = new Array();
+        this.hudInventoryIcons = new Array();
+        this.pauseInventorySlots = new Array();
+        this.pauseInventoryIcons = new Array();
+        this.pauseInventoryPopupLines = new Array();
+        this.currentSelectedUpgradeId = null;
+        this.boss = undefined;
+    }
+
+    public initScene(init: Record<string, any>): void {
+        MBProgress.loadFromInitData(init);
     }
 
     public startScene(): void {
@@ -166,13 +239,12 @@ export default abstract class MBLevel extends Scene {
         // Initialize the sprite and particle system for the players weapon 
         this.initializeWeaponSystem();
 
-        this.initializeUI();
-
         // Initialize the player 
         this.initializePlayer(this.playerSpriteKey);
 
         // Initialize the viewport - this must come after the player has been initialized
         this.initializeViewport();
+        this.initializeUI();
         this.initializePauseMenuUI();
         this.subscribeToEvents();
         
@@ -210,7 +282,7 @@ export default abstract class MBLevel extends Scene {
 
         // The destructible layer should trigger when hit by player weapon particles
         if(this.destructable !== undefined){
-            this.destructable.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.PARTICLE_HIT, null);
+            this.destructable.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.PARTICLE_HIT, "");
         }
 
     }
@@ -254,6 +326,8 @@ export default abstract class MBLevel extends Scene {
 
         const pauseLayer = this.getLayer(MBLayers.PAUSE);
         if(paused){
+            this.setPauseInventorySelection(null);
+            this.refreshInventoryUI();
             pauseLayer.enable();
             this.setGameplayPaused(true);
         } 
@@ -337,6 +411,9 @@ export default abstract class MBLevel extends Scene {
     protected showPauseControls(visible: boolean): void {
         this.pauseControlsOpen = visible;
         this.pauseCheatInput.focused = false;
+        if(visible){
+            this.setPauseInventorySelection(null);
+        }
 
         for(const element of this.pauseControlsElements){
             element.visible = visible;
@@ -348,26 +425,26 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected async executePauseCheatCode(rawCode: string): Promise<void> {
-        const code = rawCode.trim().toUpperCase();
+        const result = executeCheatCode(rawCode, {
+            boss: this.boss,
+            refreshCheatDrivenUI: () => this.refreshInventoryUI(),
+            resolveProgressTargetScene: (targetSceneId: ProgressTargetSceneId) => this.resolveProgressTargetScene(targetSceneId),
+            setPauseMenuOpen: (paused: boolean) => this.setPauseMenuOpen(paused),
+            warpToScene: (scene, init) => this.warpToScene(scene, init)
+        });
 
-        switch(code){
-            case "EMBERSKIP1":
-                break;
-            case "EMBERSKIP2":
-                break;
-            case "EMBERSKIP3":
-                break;
-            case "EMBERSKIP4":
-                break;
-            case "GODMODE":
-                break;
-            case "KILLBOSS":
-                break;
-            case "HEARTHUNLOCK":
-                break;
-            default:
-                break;
+        if(result.success){
+            this.pauseCheatInput.text = "";
         }
+    }
+
+    protected resolveProgressTargetScene(_targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
+        return null;
+    }
+
+    protected warpToScene(scene: new (...args: any) => Scene, init?: Record<string, any>): void {
+        this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
+        this.sceneManager.changeToScene(scene, init);
     }
 
     /**
@@ -394,7 +471,7 @@ export default abstract class MBLevel extends Scene {
             // When the level ends, change the scene to the next level
             case MBEvents.LEVEL_END: {
                 this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey })
-                this.sceneManager.changeToScene(this.nextLevel);
+                this.sceneManager.changeToScene(this.nextLevel, MBProgress.toInitData());
                 break;
             }
             case MBEvents.HEALTH_CHANGE: {
@@ -510,14 +587,202 @@ export default abstract class MBLevel extends Scene {
      * @param maxHealth the maximum health of the player
      */
     protected handleHealthChange(currentHealth: number, maxHealth: number): void {
-		let unit = this.healthBarBg.size.x / maxHealth;
-        
-		this.healthBar.size.set(this.healthBarBg.size.x - unit * (maxHealth - currentHealth), this.healthBarBg.size.y);
-		this.healthBar.position.set(this.healthBarBg.position.x - (unit / 2 / this.getViewScale()) * (maxHealth - currentHealth), this.healthBarBg.position.y);
+        const frameInset = 2;
+        const fillHeight = Math.max(this.healthBarBg.size.y - frameInset, 2);
+        const maxFillWidth = Math.max(this.healthBarBg.size.x - frameInset, 1);
+        const clampedHealth = Math.max(0, Math.min(currentHealth, maxHealth));
+        const fillWidth = maxHealth > 0 ? (maxFillWidth * clampedHealth) / maxHealth : 0;
+        const zoom = this.getViewScale();
+        const fillLeft = this.healthBarBg.position.x - maxFillWidth / (2 * zoom);
 
-		this.healthBar.backgroundColor = currentHealth < maxHealth * 1/4 ? Color.RED: currentHealth < maxHealth * 3/4 ? Color.YELLOW : Color.GREEN;
-	}
+        this.healthBar.size.set(fillWidth, fillHeight);
+        this.healthBar.position.set(fillLeft + fillWidth / (2 * zoom), this.healthBarBg.position.y);
 
+        this.healthBar.backgroundColor = currentHealth < maxHealth * 1/4
+            ? new Color(184, 34, 34, 1)
+            : currentHealth < maxHealth * 3/4
+                ? new Color(222, 66, 66, 1)
+                : new Color(246, 102, 102, 1);
+    }
+
+    protected grantUpgrade(upgradeId: UpgradeId, refreshUI: boolean = true): void {
+        MBProgress.grantUpgrade(upgradeId);
+
+        if(refreshUI){
+            this.refreshInventoryUI();
+        }
+    }
+
+    protected getEssentialHudUpgrades(): Array<UpgradeId | null> {
+        return MBProgress.getEssentialHudUpgrades();
+    }
+
+    protected getOwnedForPauseList(): Array<UpgradeId> {
+        return MBProgress.getOwnedForPauseList();
+    }
+
+    protected refreshInventoryUI(): void {
+        if(this.hudInventorySlots.length > 0){
+            this.refreshHudInventorySlots();
+        }
+
+        if(this.pauseInventorySlots.length > 0){
+            this.refreshPauseInventoryList();
+        }
+
+        if(this.pauseInventoryPopupLines.length > 0){
+            this.refreshPauseInventoryPopup();
+        }
+    }
+
+    protected refreshHudInventorySlots(): void {
+        const hudUpgrades = this.getEssentialHudUpgrades();
+
+        hudUpgrades.forEach((upgradeId, index) => {
+            const slot = this.hudInventorySlots[index];
+            const icon = this.hudInventoryIcons[index];
+            if(slot === undefined){
+                return;
+            }
+
+            const isOwned = upgradeId !== null && MBProgress.hasUpgrade(upgradeId);
+            const metadata = upgradeId !== null ? UPGRADE_METADATA[upgradeId] : null;
+
+            slot.font = "PixelSimple";
+            slot.fontSize = 9;
+            slot.textColor = isOwned ? new Color(246, 236, 205, 1) : new Color(122, 116, 102, 1);
+            const hasIcon = isOwned && this.getUpgradeIconImageKey(upgradeId) !== null;
+            slot.backgroundColor = hasIcon
+                ? Color.TRANSPARENT
+                : isOwned
+                    ? (metadata !== null && metadata.essential ? new Color(62, 48, 30, 0.98) : new Color(46, 38, 32, 0.98))
+                    : new Color(18, 16, 22, 0.94);
+            slot.borderColor = hasIcon ? Color.TRANSPARENT : new Color(183, 146, 82, 1);
+            slot.text = "";
+
+            if(icon !== undefined){
+                icon.visible = hasIcon;
+            }
+        });
+    }
+
+    protected refreshPauseInventoryList(): void {
+        UPGRADE_ORDER.forEach((upgradeId, index) => {
+            const slot = this.pauseInventorySlots[index];
+            const icon = this.pauseInventoryIcons[index];
+
+            if(slot === undefined){
+                return;
+            }
+
+            const metadata = UPGRADE_METADATA[upgradeId];
+            const isOwned = MBProgress.hasUpgrade(upgradeId);
+            const isEssential = metadata.essential;
+            const isSelected = this.currentSelectedUpgradeId === upgradeId && isOwned;
+            const hasIcon = isOwned && this.getUpgradeIconImageKey(upgradeId) !== null;
+
+            slot.backgroundColor = hasIcon
+                ? Color.TRANSPARENT
+                : isOwned
+                    ? (isEssential ? new Color(62, 48, 30, 0.98) : new Color(46, 38, 32, 0.98))
+                    : new Color(18, 16, 22, 0.94);
+            slot.borderColor = hasIcon
+                ? Color.TRANSPARENT
+                : isOwned
+                    ? (isSelected ? new Color(231, 194, 119, 1) : new Color(183, 146, 82, 1))
+                    : new Color(116, 94, 60, 0.8);
+            slot.textColor = isOwned ? new Color(246, 238, 214, 1) : new Color(170, 154, 126, 1);
+            slot.font = "PixelSimple";
+            slot.fontSize = 11;
+            slot.text = hasIcon ? "" : (isOwned ? metadata.shortLabel : "???");
+
+            if(icon !== undefined){
+                icon.visible = hasIcon;
+            }
+        });
+    }
+
+    protected getUpgradeIconImageKey(upgradeId: UpgradeId | null): string | null {
+        switch(upgradeId){
+            case UpgradeId.LANTERN:
+                return MBLevel.LANTERN_ICON_KEY;
+            default:
+                return null;
+        }
+    }
+
+    protected setPauseInventorySelection(upgradeId: UpgradeId | null): void {
+        if(this.currentSelectedUpgradeId === upgradeId){
+            this.currentSelectedUpgradeId = null;
+        } else {
+            this.currentSelectedUpgradeId = upgradeId;
+        }
+
+        this.refreshPauseInventoryList();
+        this.refreshPauseInventoryPopup();
+    }
+
+    protected refreshPauseInventoryPopup(): void {
+        const popupVisible = this.currentSelectedUpgradeId !== null && MBProgress.hasUpgrade(this.currentSelectedUpgradeId);
+
+        this.pauseInventoryPopupPanel.visible = popupVisible;
+        this.pauseInventoryPopupTitle.visible = popupVisible;
+        for(const line of this.pauseInventoryPopupLines){
+            line.visible = popupVisible;
+        }
+
+        if(!popupVisible){
+            return;
+        }
+
+        const metadata = UPGRADE_METADATA[this.currentSelectedUpgradeId];
+        this.pauseInventoryPopupTitle.text = metadata.name;
+
+        const wrappedLines = this.wrapPausePopupDescription(metadata.description, 34, this.pauseInventoryPopupLines.length);
+        this.pauseInventoryPopupLines.forEach((line, index) => {
+            line.text = wrappedLines[index] ?? "";
+        });
+    }
+
+    protected wrapPausePopupDescription(text: string, lineLength: number, maxLines: number): Array<string> {
+        const words = text.split(/\s+/).filter(word => word.length > 0);
+        const lines = new Array<string>();
+        let currentLine = "";
+
+        for(const word of words){
+            const candidateLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
+            if(candidateLine.length <= lineLength){
+                currentLine = candidateLine;
+                continue;
+            }
+
+            if(currentLine.length > 0){
+                lines.push(currentLine);
+            }
+            currentLine = word;
+
+            if(lines.length === maxLines){
+                break;
+            }
+        }
+
+        if(lines.length < maxLines && currentLine.length > 0){
+            lines.push(currentLine);
+        }
+
+        if(lines.length > maxLines){
+            lines.length = maxLines;
+        }
+
+        if(lines.length === maxLines && words.length > 0){
+            const lastIndex = maxLines - 1;
+            if(lines[lastIndex].length > lineLength - 3){
+                lines[lastIndex] = `${lines[lastIndex].slice(0, Math.max(0, lineLength - 3))}...`;
+            }
+        }
+
+        return lines;
+    }
     /* Initialization methods for everything in the scene */
 
     /**
@@ -619,22 +884,62 @@ export default abstract class MBLevel extends Scene {
      * Adds in any necessary UI to the game
      */
     protected initializeUI(): void {
-
-        // HP Label
-		this.healthLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {position: new Vec2(205, 20), text: "HP "});
-		this.healthLabel.size.set(300, 30);
-		this.healthLabel.fontSize = 24;
-		this.healthLabel.font = "Courier";
+        const hud = MBLevel.HUD_TUNING;
+        const zoom = this.getViewScale();
+        const toUIScreenX = (screenX: number): number => screenX / zoom;
+        const toUIScreenY = (screenY: number): number => screenY / zoom;
+        const hudLeft = hud.left;
+        const hpBarTop = hud.healthBarTop;
+        const hpBarWidth = hud.healthBarWidth;
+        const hpBarHeight = hud.healthBarHeight;
+        const inventoryY = hpBarTop + hpBarHeight + hud.inventoryOffsetY;
+        const slotSize = hud.slotSize;
+        const slotGap = hud.slotGap;
+        const hpBarCenterX = toUIScreenX(hudLeft + hpBarWidth / 2);
+        const hpBarCenterY = toUIScreenY(hpBarTop + hpBarHeight / 2);
+        const slotCenterY = toUIScreenY(inventoryY + slotSize / 2);
 
         // HealthBar
-		this.healthBar = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {position: new Vec2(250, 20), text: ""});
-		this.healthBar.size = new Vec2(300, 25);
-		this.healthBar.backgroundColor = Color.GREEN;
+        this.healthBar = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: new Vec2(hpBarCenterX, hpBarCenterY),
+            text: ""
+        });
+        this.healthBar.size = new Vec2(hpBarWidth - 2, hpBarHeight - 2);
+        this.healthBar.backgroundColor = new Color(238, 84, 84, 1);
+        this.healthBar.borderRadius = hud.healthBarRadius;
 
         // HealthBar Border
-		this.healthBarBg = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {position: new Vec2(250, 20), text: ""});
-		this.healthBarBg.size = new Vec2(300, 25);
-		this.healthBarBg.borderColor = Color.BLACK;
+        this.healthBarBg = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: new Vec2(hpBarCenterX, hpBarCenterY),
+            text: ""
+        });
+        this.healthBarBg.size = new Vec2(hpBarWidth, hpBarHeight);
+        this.healthBarBg.backgroundColor = new Color(38, 20, 18, 0.95);
+        this.healthBarBg.borderColor = new Color(183, 146, 82, 1);
+        this.healthBarBg.borderRadius = hud.healthBarRadius;
+
+        for(let i = 0; i < 5; i++){
+            const slotCenterX = toUIScreenX(hudLeft + slotSize / 2 + i * (slotSize + slotGap));
+            const slot = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+                position: new Vec2(slotCenterX, slotCenterY),
+                text: ""
+            });
+            slot.size.set(slotSize, slotSize);
+            slot.backgroundColor = new Color(24, 22, 28, 0.95);
+            slot.borderColor = new Color(183, 146, 82, 1);
+            slot.borderRadius = hud.slotRadius;
+            this.hudInventorySlots.push(slot);
+
+            const icon = this.add.sprite(MBLevel.LANTERN_ICON_KEY, MBLayers.UI);
+            icon.position.copy(slot.position);
+            const hudIconSize = Math.max(hud.iconSize, 8);
+            const hudIconScale = hudIconSize / 128;
+            icon.scale.set(hudIconScale, hudIconScale);
+            icon.visible = false;
+            this.hudInventoryIcons.push(icon);
+        }
+
+        this.refreshHudInventorySlots();
 
         // End of level label (start off screen)
         this.levelEndLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, { position: new Vec2(-300, 100), text: "Level Complete" });
@@ -695,8 +1000,8 @@ export default abstract class MBLevel extends Scene {
             onEnd: MBEvents.LEVEL_START
         });
     }
-
     protected initializePauseMenuUI(): void {
+        const pause = MBLevel.PAUSE_TUNING;
         const size = this.viewport.getHalfSize();
         const viewSize = size.scaled(2);
         const viewportPosition = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
@@ -709,15 +1014,15 @@ export default abstract class MBLevel extends Scene {
         overlay.color = new Color(12, 10, 18, 0.82);
 
         const titleBox = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
-            position: viewportPosition(600, 100),
+            position: viewportPosition(pause.titleCenterX, pause.titleY),
             size: viewportGraphicSize(320, 70)
         });
         titleBox.color = new Color(20, 18, 24, 0.85);
-        titleBox.borderColor = Color.WHITE;
+        titleBox.borderColor = new Color(186, 150, 86, 1);
         this.pauseMenuElements.push(titleBox);
 
         const title = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
-            position: viewportPosition(600, 100),
+            position: viewportPosition(pause.titleCenterX, pause.titleY),
             text: "PAUSED"
         });
         title.textColor = Color.WHITE;
@@ -725,20 +1030,117 @@ export default abstract class MBLevel extends Scene {
         title.fontSize = 40;
         this.pauseMenuElements.push(title);
 
-        const buttonX = viewportPosition(600, 0).x;
-        const continueButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 280).y), "Continue", () => this.setPauseMenuOpen(false));
+        const buttonX = viewportPosition(pause.buttonCenterX, 0).x;
+        const continueButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, pause.continueY).y), "Continue", () => this.setPauseMenuOpen(false));
         this.pauseMenuElements.push(continueButton);
 
-        this.pauseControlsButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 355).y), "Controls", () => {
+        this.pauseControlsButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, pause.controlsY).y), "Controls", () => {
             this.showPauseControls(!this.pauseControlsOpen);
         });
         this.pauseMenuElements.push(this.pauseControlsButton);
 
-        const quitButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, 430).y), "Quit", () => {
+        const quitButton = this.initializePauseButton(new Vec2(buttonX, viewportPosition(0, pause.quitY).y), "Quit", () => {
             this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
             this.sceneManager.changeToScene(SplashScreen);
         });
         this.pauseMenuElements.push(quitButton);
+
+        const inventoryPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
+            position: viewportPosition(pause.inventoryCenterX, pause.inventoryPanelCenterY),
+            size: viewportGraphicSize(pause.inventoryPanelWidth, pause.inventoryPanelHeight)
+        });
+        inventoryPanel.color = new Color(20, 18, 24, 0.9);
+        inventoryPanel.borderColor = new Color(186, 150, 86, 1);
+        this.pauseMenuElements.push(inventoryPanel);
+
+        const inventoryTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+            position: viewportPosition(pause.inventoryCenterX, pause.inventoryTitleY),
+            text: "INVENTORY"
+        });
+        inventoryTitle.textColor = Color.WHITE;
+        inventoryTitle.font = "PixelSimple";
+        inventoryTitle.fontSize = 26;
+        this.pauseMenuElements.push(inventoryTitle);
+
+        const inventorySubTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+            position: viewportPosition(pause.inventoryCenterX, pause.inventorySubtitleY),
+            text: "Click Owned Slots"
+        });
+        inventorySubTitle.textColor = new Color(194, 186, 166, 1);
+        inventorySubTitle.font = "PixelSimple";
+        inventorySubTitle.fontSize = 16;
+        this.pauseMenuElements.push(inventorySubTitle);
+
+        const slotCenterX = viewportPosition(pause.inventoryCenterX, 0).x;
+        const slotStartY = viewportPosition(0, pause.inventorySlotStartY).y;
+        const slotStepY = viewSize.y * (pause.inventorySlotStepY / 800);
+        const pauseSlotSize = viewportGraphicSize(pause.inventorySlotSize, pause.inventorySlotSize);
+
+        UPGRADE_ORDER.forEach((upgradeId, index) => {
+            const slotY = slotStartY + index * slotStepY;
+
+            const slot = <Button>this.add.uiElement(UIElementType.BUTTON, MBLayers.PAUSE, {
+                position: new Vec2(slotCenterX, slotY),
+                text: ""
+            });
+            slot.size.copy(pauseSlotSize);
+            slot.backgroundColor = new Color(18, 16, 22, 0.94);
+            slot.borderColor = new Color(116, 94, 60, 0.8);
+            slot.borderRadius = 6;
+            slot.setPadding(new Vec2(0, 0));
+            slot.font = "PixelSimple";
+            slot.fontSize = 11;
+            slot.onClick = () => {
+                if(MBProgress.hasUpgrade(upgradeId)){
+                    this.setPauseInventorySelection(upgradeId);
+                }
+            };
+            this.pauseInventorySlots.push(slot);
+            this.pauseMenuElements.push(slot);
+
+            const icon = this.add.sprite(MBLevel.LANTERN_ICON_KEY, MBLayers.PAUSE);
+            icon.position.copy(slot.position);
+            const pauseIconSize = Math.max(pause.inventoryIconSize, 12);
+            const pauseIconScale = pauseIconSize / 128;
+            icon.scale.set(pauseIconScale, pauseIconScale);
+            icon.visible = false;
+            this.pauseInventoryIcons.push(icon);
+            this.pauseMenuElements.push(icon);
+        });
+
+        this.pauseInventoryPopupPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
+            position: viewportPosition(pause.popupCenterX, pause.popupCenterY),
+            size: viewportGraphicSize(pause.popupWidth, pause.popupHeight)
+        });
+        this.pauseInventoryPopupPanel.color = new Color(16, 14, 20, 0.97);
+        this.pauseInventoryPopupPanel.borderColor = new Color(186, 150, 86, 1);
+        this.pauseInventoryPopupPanel.visible = false;
+        this.pauseMenuElements.push(this.pauseInventoryPopupPanel);
+
+        this.pauseInventoryPopupTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+            position: viewportPosition(pause.popupCenterX, pause.popupTitleY),
+            text: ""
+        });
+        this.pauseInventoryPopupTitle.size.copy(viewportGraphicSize(300, 26));
+        this.pauseInventoryPopupTitle.font = "PixelSimple";
+        this.pauseInventoryPopupTitle.fontSize = 20;
+        this.pauseInventoryPopupTitle.textColor = new Color(246, 238, 214, 1);
+        this.pauseInventoryPopupTitle.visible = false;
+        this.pauseMenuElements.push(this.pauseInventoryPopupTitle);
+
+        for(let i = 0; i < 5; i++){
+            const line = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
+                position: viewportPosition(pause.popupCenterX, pause.popupLineStartY + i * pause.popupLineStepY),
+                text: ""
+            });
+            line.size.copy(viewportGraphicSize(320, 20));
+            line.font = "PixelSimple";
+            line.fontSize = 14;
+            line.textColor = new Color(225, 224, 230, 1);
+            line.visible = false;
+            this.pauseInventoryPopupLines.push(line);
+            this.pauseMenuElements.push(line);
+        }
 
         this.pauseControlsPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PAUSE, {
             position: viewportPosition(600, 355),
@@ -792,7 +1194,7 @@ export default abstract class MBLevel extends Scene {
         this.pauseControlsElements.push(backButton);
 
         const cheatTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.PAUSE, {
-            position: viewportPosition(600, 665),
+            position: viewportPosition(pause.buttonCenterX, pause.cheatTitleY),
             text: "Cheat Codes"
         });
         cheatTitle.textColor = Color.WHITE;
@@ -802,7 +1204,7 @@ export default abstract class MBLevel extends Scene {
         this.pauseMenuElements.push(cheatTitle);
 
         this.pauseCheatInput = <TextInput>this.add.uiElement(UIElementType.TEXT_INPUT, MBLayers.PAUSE, {
-            position: viewportPosition(600, 720)
+            position: viewportPosition(pause.buttonCenterX, pause.cheatInputY)
         });
         this.pauseCheatInput.size.set(320, 42);
         this.pauseCheatInput.font = "PixelSimple";
@@ -811,7 +1213,9 @@ export default abstract class MBLevel extends Scene {
         this.pauseCheatInput.borderColor = Color.WHITE;
         this.pauseCheatInput.borderRadius = 0;
         this.pauseMenuElements.push(this.pauseCheatInput);
-        
+
+        this.refreshPauseInventoryList();
+        this.refreshPauseInventoryPopup();
     }
 
     protected initializePauseButton(position: Vec2, text: string, onClick: () => void): Button {
@@ -819,12 +1223,13 @@ export default abstract class MBLevel extends Scene {
             position: position,
             text: text
         });
-        button.backgroundColor = Color.TRANSPARENT;
-        button.borderColor = Color.WHITE;
-        button.borderRadius = 0;
+        button.backgroundColor = new Color(26, 22, 28, 0.92);
+        button.borderColor = new Color(186, 150, 86, 1);
+        button.borderRadius = 4;
         button.setPadding(new Vec2(50, 10));
         button.font = "PixelSimple";
         button.fontSize = 24;
+        button.textColor = new Color(246, 238, 214, 1);
         button.onClick = onClick;
         return button;
     }
@@ -920,7 +1325,7 @@ export default abstract class MBLevel extends Scene {
         
         this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, { position: this.levelEndPosition, size: this.levelEndHalfSize });
         this.levelEndArea.addPhysics(undefined, undefined, false, true);
-        this.levelEndArea.setTrigger(MBPhysicsGroups.PLAYER, MBEvents.PLAYER_ENTERED_LEVEL_END, null);
+        this.levelEndArea.setTrigger(MBPhysicsGroups.PLAYER, MBEvents.PLAYER_ENTERED_LEVEL_END, "");
         this.levelEndArea.color = new Color(255, 0, 255, .20);
         
     }

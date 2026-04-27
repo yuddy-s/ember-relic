@@ -25,6 +25,7 @@ type VorrathControllerOptions = {
     arenaWallLavaPillarBasePoints: Vec2[];
     moveSpeed?: number;
     aggroRange?: number;
+    aggroHeightThreshold?: number;
     attackRange?: number;
     twoHandSlamRange?: number;
     twoHandSlamLaneThreshold?: number;
@@ -110,6 +111,7 @@ export default class VorrathController extends ControllerAI {
     protected player!: AnimatedSprite;
     protected moveSpeed!: number;
     protected aggroRange!: number;
+    protected aggroHeightThreshold!: number;
     protected punchDecisionRange!: number;
     protected slamDecisionRange!: number;
     protected twoHandSlamMinRange!: number;
@@ -264,7 +266,8 @@ export default class VorrathController extends ControllerAI {
         this.lavaPillarBossClearDistance = Math.max(0, options.lavaPillarBossClearDistance ?? 112);
         this.moveSpeed = options.moveSpeed ?? 75;
 
-        this.aggroRange = options.aggroRange ?? 360;
+        this.aggroRange = options.aggroRange ?? 80;
+        this.aggroHeightThreshold = options.aggroHeightThreshold ?? (this.hitboxHalfSize.y + 24);
         this.punchDecisionRange = 70;
         this.slamDecisionRange = Math.max(this.punchDecisionRange + 10, 150);
         this.twoHandSlamMinRange = Math.max(this.slamDecisionRange + 10, 170);
@@ -319,7 +322,7 @@ export default class VorrathController extends ControllerAI {
         this.punchActiveDuration = 0.2;
         this.punchRecoveryDuration = 0.7;
         this.punchCooldownDuration = 1.5;
-        this.punchDamage = 1;
+        this.punchDamage = 20;
         this.punchKnockbackX = 100;
         this.punchKnockbackY = -180;
         this.punchCooldownTimer = 0;
@@ -334,7 +337,7 @@ export default class VorrathController extends ControllerAI {
         this.slamActiveDuration = 0.55;
         this.slamRecoveryDuration = 0.8;
         this.slamCooldownDuration = 1.0;
-        this.slamDamage = 1;
+        this.slamDamage = 30;
         this.slamKnockbackX = 100;
         this.slamKnockbackY = -420;
         this.slamCooldownTimer = 0;
@@ -352,7 +355,7 @@ export default class VorrathController extends ControllerAI {
         this.rockThrowActiveDuration = 0.2;
         this.rockThrowRecoveryDuration = 0.9;
         this.rockThrowCooldownDuration = 4.2;
-        this.rockThrowDamage = 1;
+        this.rockThrowDamage = 15;
         this.rockThrowKnockbackX = 280;
         this.rockThrowKnockbackY = -220;
         this.rockThrowCooldownTimer = 0;
@@ -364,13 +367,14 @@ export default class VorrathController extends ControllerAI {
         this.rockProjectileGravity = 360;
         this.rockProjectileSpinSpeed = 7;
         this.rockProjectileLifetime = 6;
-        this.rockThrowLeadTime = 0.28;
-        this.rockThrowVerticalLeadStrength = 0.55;
+        this.rockThrowLeadTime = 0.09;
+        this.rockThrowVerticalLeadStrength = 0.3;
         this.rockProjectile = null;
         this.rockThrowTrigger = null;
         this.rockThrowBackstepDistance = 30;
         this.rockThrowBackstepDuration = 0.2;
         this.rockThrowBackstepDirection = 1;
+        
         this.forcedComboAction = null;
         this.slamToTwoHandSlamChance = 0.4;
         this.slamToRockThrowChance = 0.4;
@@ -382,7 +386,7 @@ export default class VorrathController extends ControllerAI {
         this.twoHandSlamActiveDuration = 1.25;
         this.twoHandSlamRecoveryDuration = 1.05;
         this.twoHandSlamCooldownDuration = 5.6;
-        this.twoHandSlamDamage = 1;
+        this.twoHandSlamDamage = 25;
         this.twoHandSlamKnockbackX = 210;
         this.twoHandSlamKnockbackY = -360;
         this.twoHandSlamCooldownTimer = 0;
@@ -514,7 +518,7 @@ export default class VorrathController extends ControllerAI {
         this.combatBlackboard.deltaY = deltaY;
         this.combatBlackboard.absDeltaY = absDeltaY;
         this.combatBlackboard.playerOnLeft = deltaX < 0;
-        this.combatBlackboard.playerInAggroRange = absDeltaX <= this.aggroRange;
+        this.combatBlackboard.playerInAggroRange = absDeltaX <= this.aggroRange && absDeltaY <= this.aggroHeightThreshold;
         this.combatBlackboard.playerInPunchRange = absDeltaX <= this.punchDecisionRange;
         this.combatBlackboard.playerInSlamRange = absDeltaX <= this.slamDecisionRange;
         this.combatBlackboard.playerInRockThrowRange = absDeltaX <= this.rockThrowRange;

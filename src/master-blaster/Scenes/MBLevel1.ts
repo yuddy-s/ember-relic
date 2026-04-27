@@ -14,7 +14,7 @@ import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
  */
 export default class Level1 extends MBLevel {
 
-    public static readonly PLAYER_SPAWN = new Vec2(32, 304);
+    public static readonly PLAYER_SPAWN = new Vec2(32, 280);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 

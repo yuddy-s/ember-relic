@@ -32,7 +32,7 @@ export default class Level2 extends MBLevel {
     private furCoatGrantedFromBoss: boolean = false;
     private level2BossProgressRecorded: boolean = false;
     // new Vec2(1536, 752) 2600, 1050
-    public static readonly PLAYER_SPAWN = new Vec2(1536, 752);
+    public static readonly PLAYER_SPAWN = new Vec2(1536, 740);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
@@ -45,7 +45,8 @@ export default class Level2 extends MBLevel {
     public static readonly VORRATH_SCALE = new Vec2(0.4, 0.4);
     public static readonly VORRATH_HITBOX_HALF_SIZE = new Vec2(72, 104);
     public static readonly VORRATH_VISUAL_OFFSET_Y = 8;
-    public static readonly VORRATH_AGGRO_RANGE = 80;
+    public static readonly VORRATH_AGGRO_RANGE = 100;
+    public static readonly VORRATH_AGGRO_HEIGHT_THRESHOLD = 70;
     public static readonly VORRATH_ATTACK_RANGE = 140;
     public static readonly VORRATH_TWO_HAND_SLAM_RANGE = 430;
     public static readonly VORRATH_TWO_HAND_SLAM_LANE_THRESHOLD = 95;
@@ -220,6 +221,7 @@ export default class Level2 extends MBLevel {
             arenaWallLavaPillarBasePoints,
             moveSpeed: Level2.VORRATH_MOVE_SPEED,
             aggroRange: Level2.VORRATH_AGGRO_RANGE,
+            aggroHeightThreshold: Level2.VORRATH_AGGRO_HEIGHT_THRESHOLD,
             attackRange: Level2.VORRATH_ATTACK_RANGE,
             twoHandSlamRange: Level2.VORRATH_TWO_HAND_SLAM_RANGE,
             twoHandSlamLaneThreshold: Level2.VORRATH_TWO_HAND_SLAM_LANE_THRESHOLD,

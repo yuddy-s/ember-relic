@@ -207,6 +207,12 @@ export default abstract class MBLevel extends Scene {
         barRadius: 4
     };
 
+    protected static readonly PLAYER_HITBOX_TUNING = {
+        halfWidth: 11,
+        halfHeight: 14,
+        offsetY: 2
+    };
+
     protected static readonly HEALTH_BAR_FILL_COLOR = new Color(88, 35, 33, 1);
     protected static readonly HEALTH_BAR_TRACK_COLOR = new Color(38, 20, 18, 0.95);
     protected static readonly HEALTH_BAR_BORDER_COLOR = new Color(183, 146, 82, 1);
@@ -1709,7 +1715,11 @@ export default abstract class MBLevel extends Scene {
         this.player.position.copy(this.playerSpawn);
         
         // Give the player physics
-        this.player.addPhysics(new AABB(this.player.position.clone(), this.player.boundary.getHalfSize().clone()));
+        const playerHitbox = MBLevel.PLAYER_HITBOX_TUNING;
+        this.player.addPhysics(
+            new AABB(this.player.position.clone(), new Vec2(playerHitbox.halfWidth, playerHitbox.halfHeight)),
+            new Vec2(0, playerHitbox.offsetY)
+        );
 
         // TODO - give the player their flip tween
 

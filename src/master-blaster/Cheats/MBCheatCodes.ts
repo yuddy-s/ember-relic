@@ -4,13 +4,15 @@ import { MBProgress } from "../Progress/MBProgress";
 import { getMBProgressSnapshot, ProgressSnapshotId, ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 
 export enum MBCheatCode {
+    FLY = "FLY",
+    TPBOSS = "TPBOSS",
     GODMODE = "GODMODE",
     KILLBOSS = "KILLBOSS",
     HEARTHUNLOCK = "HEARTHUNLOCK",
-    EMBERSKIP1 = "EMBERSKIP1",
-    EMBERSKIP2 = "EMBERSKIP2",
-    EMBERSKIP3 = "EMBERSKIP3",
-    EMBERSKIP4 = "EMBERSKIP4"
+    EMBERSKIP1 = "SKIP1",
+    EMBERSKIP2 = "SKIP2",
+    EMBERSKIP3 = "SKIP3",
+    EMBERSKIP4 = "SKIP4"
 }
 
 export interface CheatExecutionContext {
@@ -18,6 +20,8 @@ export interface CheatExecutionContext {
     refreshCheatDrivenUI(): void;
     resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null;
     setPauseMenuOpen(paused: boolean): void;
+    teleportPlayerToBoss(): boolean;
+    toggleFlyMode(): boolean;
     warpToScene(scene: new (...args: any) => Scene, init?: Record<string, any>): void;
 }
 
@@ -37,6 +41,8 @@ export function parseCheatCode(input: string): MBCheatCode | null {
 
     switch(normalizedCode){
         case MBCheatCode.GODMODE:
+        case MBCheatCode.FLY:
+        case MBCheatCode.TPBOSS:
         case MBCheatCode.KILLBOSS:
         case MBCheatCode.HEARTHUNLOCK:
         case MBCheatCode.EMBERSKIP1:
@@ -61,6 +67,10 @@ export function executeCheatCode(input: string, context: CheatExecutionContext):
     }
 
     switch(code){
+        case MBCheatCode.FLY:
+            return executeFlyCheat(context);
+        case MBCheatCode.TPBOSS:
+            return executeTeleportBossCheat(context);
         case MBCheatCode.GODMODE:
             return executeGodModeCheat();
         case MBCheatCode.KILLBOSS:
@@ -82,6 +92,26 @@ export function executeCheatCode(input: string, context: CheatExecutionContext):
                 code
             };
     }
+}
+
+function executeFlyCheat(context: CheatExecutionContext): CheatExecutionResult {
+    const enabled = context.toggleFlyMode();
+
+    return {
+        success: true,
+        message: enabled ? "Fly mode enabled." : "Fly mode disabled.",
+        code: MBCheatCode.FLY
+    };
+}
+
+function executeTeleportBossCheat(context: CheatExecutionContext): CheatExecutionResult {
+    const success = context.teleportPlayerToBoss();
+
+    return {
+        success,
+        message: success ? "Teleported to boss." : "No boss teleport is available here.",
+        code: MBCheatCode.TPBOSS
+    };
 }
 
 function executeGodModeCheat(): CheatExecutionResult {

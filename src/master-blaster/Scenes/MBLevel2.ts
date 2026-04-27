@@ -3,6 +3,7 @@ import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
+import PlayerController from "../Player/PlayerController";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import Level2Boss, { VorrathAnimations } from "../Bosses/Level2Boss";
 import VorrathController from "../Bosses/VorrathController";
@@ -26,7 +27,7 @@ export default class Level2 extends MBLevel {
     private level2BossSprite!: MBAnimatedSprite;
     private bossDebugTimer: number;
     // new Vec2(1536, 752)
-    public static readonly PLAYER_SPAWN = new Vec2(2550, 1050);
+    public static readonly PLAYER_SPAWN = new Vec2(1536, 752);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
@@ -206,6 +207,19 @@ export default class Level2 extends MBLevel {
 
     public getLevel2BossSprite(): MBAnimatedSprite {
         return this.level2BossSprite;
+    }
+
+    protected teleportPlayerToBoss(): boolean {
+        if(this.player === undefined || this.level2BossSprite === undefined){
+            return false;
+        }
+
+        this.player.position.copy(this.level2BossSprite.position.clone().add(new Vec2(0, -50)));
+
+        const controller = this.player.ai as PlayerController;
+        controller.velocity = Vec2.ZERO;
+
+        return true;
     }
 
     protected placeBossOnFloor(hitboxHalfSize: Vec2): void {

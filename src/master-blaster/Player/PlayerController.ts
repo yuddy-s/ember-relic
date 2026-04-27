@@ -66,6 +66,7 @@ export default class PlayerController extends StateMachineAI {
     public readonly MAX_SPEED: number = 240;
     public readonly MIN_SPEED: number = 130;
     public readonly DASH_SPEED: number = 500;
+    public readonly FLY_SPEED: number = 220;
 
     protected readonly DASH_DURATION: number = 0.14;
     protected readonly DASH_COOLDOWN: number = 0.5;
@@ -92,6 +93,7 @@ export default class PlayerController extends StateMachineAI {
     protected hasAirDashed: boolean;
     protected coyoteTimer: number;
     protected jumpBufferTimer: number;
+    protected flyMode: boolean;
 
     
     public initializeAI(owner: MBAnimatedSprite, options: Record<string, any>){
@@ -109,6 +111,7 @@ export default class PlayerController extends StateMachineAI {
         this.hasAirDashed = false;
         this.coyoteTimer = 0;
         this.jumpBufferTimer = 0;
+        this.flyMode = false;
 
         this.health = 5
         this.maxHealth = 5;
@@ -142,6 +145,11 @@ export default class PlayerController extends StateMachineAI {
     public get faceDir(): Vec2 { return this.owner.position.dirTo(Input.getGlobalMousePosition()); }
 
     public update(deltaT: number): void {
+        if(this.flyMode){
+            this.updateFly(deltaT);
+            return;
+        }
+
 		super.update(deltaT);
 
         if(Input.isJustPressed(MBControls.JUMP)){
@@ -171,6 +179,76 @@ export default class PlayerController extends StateMachineAI {
     this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - deltaT);
 
 	}
+
+    protected updateFly(deltaT: number): void {
+        let horizontal = 0;
+        let vertical = 0;
+
+        if(Input.isPressed(MBControls.MOVE_LEFT)){
+            horizontal -= 1;
+        }
+        if(Input.isPressed(MBControls.MOVE_RIGHT)){
+            horizontal += 1;
+        }
+        if(Input.isPressed(MBControls.JUMP)){
+            vertical -= 1;
+        }
+        if(Input.isKeyPressed("s") || Input.isKeyPressed("arrowdown")){
+            vertical += 1;
+        }
+
+        if(horizontal !== 0){
+            this.owner.invertX = horizontal < 0;
+        }
+
+        const moveDir = new Vec2(horizontal, vertical);
+        if(!moveDir.isZero()){
+            moveDir.normalize();
+        }
+
+        this.velocity.x = moveDir.x * this.FLY_SPEED;
+        this.velocity.y = moveDir.y * this.FLY_SPEED;
+        this.owner.move(this.velocity.scaled(deltaT));
+
+        if(!this.isDashing() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
+            this.weapon.setSlashDirection(this.faceDir);
+
+            const slashOrigin = this.owner.position.clone().add(this.faceDir.clone().normalize().scale(8));
+            this.weapon.startSystem(180, 0, slashOrigin);
+            this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
+            this.owner.animation.queue(PlayerAnimations.IDLE);
+        } else if(moveDir.isZero()){
+            this.owner.animation.playIfNotAlready(PlayerAnimations.IDLE, true);
+        } else {
+            this.owner.animation.playIfNotAlready(PlayerAnimations.WALK_RIGHT, true);
+        }
+
+        this.dashTimer = 0;
+        this.dashCooldownTimer = 0;
+        this.hasAirDashed = false;
+        this.coyoteTimer = this.COYOTE_TIME;
+        this.jumpBufferTimer = 0;
+    }
+
+    public toggleFlyMode(): boolean {
+        this.flyMode = !this.flyMode;
+        this.velocity = Vec2.ZERO;
+        this.dashTimer = 0;
+        this.dashCooldownTimer = 0;
+        this.hasAirDashed = false;
+        this.jumpBufferTimer = 0;
+        this.coyoteTimer = 0;
+
+        if(this.flyMode){
+            this.owner.animation.playIfNotAlready(PlayerAnimations.IDLE, true);
+        } else if(this.owner.onGround){
+            this.changeState(PlayerStates.IDLE);
+        } else {
+            this.changeState(PlayerStates.FALL);
+        }
+
+        return this.flyMode;
+    }
 
     public isDashing(): boolean {
         return this.dashTimer > 0;

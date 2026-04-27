@@ -21,6 +21,10 @@ import TakingDamage from "./PlayerStates/TakingDamage";
 import { TweenableProperties } from "../../Wolfie2D/Nodes/GameNode";
 import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
 
+type DamageModifyingScene = {
+    modifyIncomingPlayerDamage?: (amount: number, damageType: string) => number;
+};
+
 // TODO play your heros animations
 
 /**
@@ -342,8 +346,14 @@ export default class PlayerController extends StateMachineAI {
         return !this.isInvulnerable() && this.health > 0;
     }
 
-    public applyDamage(amount: number, knockback?: Vec2): boolean {
-        if(amount <= 0 || !this.canTakeDamage()){
+    public applyDamage(amount: number, knockback?: Vec2, damageType: string = "generic"): boolean {
+        const scene = this.owner.getScene() as DamageModifyingScene;
+        const modifiedDamage = scene.modifyIncomingPlayerDamage !== undefined
+            ? scene.modifyIncomingPlayerDamage(amount, damageType)
+            : amount;
+        const resolvedDamage = Math.max(0, Math.ceil(modifiedDamage));
+
+        if(resolvedDamage <= 0 || !this.canTakeDamage()){
             return false;
         }
 
@@ -351,13 +361,17 @@ export default class PlayerController extends StateMachineAI {
             this.velocity = knockback.clone();
         }
 
-        this.health = this.health - amount;
+        this.health = this.health - resolvedDamage;
         if(this.health > 0){
             this.grantInvulnerability(this.POST_HIT_INVULNERABILITY);
             this.changeState(PlayerStates.TAKINGDAMAGE);
         }
 
         return true;
+    }
+
+    public applyEnvironmentalTickDamage(amount: number): boolean {
+        return this.applyDamage(amount, undefined, "environment_tick");
     }
 
     public get velocity(): Vec2 { return this._velocity; }

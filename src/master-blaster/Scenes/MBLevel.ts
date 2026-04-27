@@ -15,6 +15,7 @@ import Label from "../../Wolfie2D/Nodes/UIElements/Label";
 import TextInput from "../../Wolfie2D/Nodes/UIElements/TextInput";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
+import ResourceManager from "../../Wolfie2D/ResourceManager/ResourceManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
@@ -83,6 +84,14 @@ export default abstract class MBLevel extends Scene {
     private pauseInventoryPopupPanel!: Rect;
     private pauseInventoryPopupTitle!: Label;
     private pauseInventoryPopupLines: Array<Label>;
+    private upgradeRewardOverlay!: Rect;
+    private upgradeRewardPanel!: Rect;
+    private upgradeRewardTitle!: Label;
+    private upgradeRewardLines: Array<Label>;
+    private upgradeRewardConfirmButton!: Button;
+    private upgradeRewardElements: Array<CanvasNode>;
+    private upgradeRewardOpen: boolean;
+    private upgradeRewardOnConfirm: (() => void) | null;
     private currentSelectedUpgradeId: UpgradeId | null;
     protected boss?: BossHandle;
 
@@ -155,6 +164,22 @@ export default abstract class MBLevel extends Scene {
 
     protected static readonly LANTERN_ICON_KEY = "UPGRADE_ICON_LANTERN";
     protected static readonly LANTERN_ICON_PATH = "game_assets/art/upgrades/lantern.png";
+    protected static readonly FUR_COAT_ICON_KEY = "UPGRADE_ICON_FUR_COAT";
+    protected static readonly FUR_COAT_ICON_PATH = "game_assets/art/upgrades/furcoat.png";
+    protected static readonly DOUBLE_JUMP_ICON_KEY = "UPGRADE_ICON_DOUBLE_JUMP";
+    protected static readonly DOUBLE_JUMP_ICON_PATH = "game_assets/art/upgrades/doubleJump.png";
+    protected static readonly REVIVAL_ICON_KEY = "UPGRADE_ICON_REVIVAL";
+    protected static readonly REVIVAL_ICON_PATH = "game_assets/art/upgrades/revival.png";
+    protected static readonly UPGRADED_BOOTS_ICON_KEY = "UPGRADE_ICON_UPGRADED_BOOTS";
+    protected static readonly UPGRADED_BOOTS_ICON_PATH = "game_assets/art/upgrades/speedUp.png";
+    protected static readonly ICE_PICK_ICON_KEY = "UPGRADE_ICON_ICE_PICK";
+    protected static readonly ICE_PICK_ICON_PATH = "game_assets/art/upgrades/icePick.png";
+    protected static readonly SHATTERDIVE_ICON_KEY = "UPGRADE_ICON_SHATTERDIVE";
+    protected static readonly SHATTERDIVE_ICON_PATH = "game_assets/art/upgrades/shatterDive.png";
+    protected static readonly HEALTH_BUFF_ICON_KEY = "UPGRADE_ICON_HEALTH_BUFF";
+    protected static readonly HEALTH_BUFF_ICON_PATH = "game_assets/art/upgrades/hpUp.png";
+    protected static readonly UPGRADED_SWORD_ICON_KEY = "UPGRADE_ICON_UPGRADED_SWORD";
+    protected static readonly UPGRADED_SWORD_ICON_PATH = "game_assets/art/upgrades/upgradeSword.png";
     
     // HUD TUNING"
     // Change these values to adjust the in-game health bar and quick-slot row.
@@ -181,6 +206,12 @@ export default abstract class MBLevel extends Scene {
         barWidth: 360,
         barHeight: 16,
         barRadius: 4
+    };
+
+    protected static readonly PLAYER_HITBOX_TUNING = {
+        halfWidth: 11,
+        halfHeight: 14,
+        offsetY: 2
     };
 
     protected static readonly HEALTH_BAR_FILL_COLOR = new Color(88, 35, 33, 1);
@@ -244,6 +275,10 @@ export default abstract class MBLevel extends Scene {
         this.pauseInventorySlots = new Array();
         this.pauseInventoryIcons = new Array();
         this.pauseInventoryPopupLines = new Array();
+        this.upgradeRewardLines = new Array();
+        this.upgradeRewardElements = new Array();
+        this.upgradeRewardOpen = false;
+        this.upgradeRewardOnConfirm = null;
         this.currentSelectedUpgradeId = null;
         this.boss = undefined;
         this.bossDamageCooldownTimer = 0;
@@ -347,6 +382,13 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected handlePauseInput(): void {
+        if(this.upgradeRewardOpen){
+            if(Input.isKeyJustPressed("enter") || Input.isKeyJustPressed("space")){
+                this.confirmUpgradeRewardPopup();
+            }
+            return;
+        }
+
         if(Input.isKeyJustPressed("escape")){
             this.setPauseMenuOpen(!this.pauseMenuOpen);
             return;
@@ -670,6 +712,22 @@ export default abstract class MBLevel extends Scene {
         }
     }
 
+    public modifyIncomingPlayerDamage(amount: number, damageType: string = "generic"): number {
+        return amount;
+    }
+
+    protected applyFurCoatMountainDamageReduction(amount: number, damageType: string = "generic", attackDamageMultiplier: number = 0.35): number {
+        if(!MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
+            return amount;
+        }
+
+        if(damageType === "environment_tick"){
+            return 0;
+        }
+
+        return amount * attackDamageMultiplier;
+    }
+
     protected getEssentialHudUpgrades(): Array<UpgradeId | null> {
         return MBProgress.getEssentialHudUpgrades();
     }
@@ -778,6 +836,7 @@ export default abstract class MBLevel extends Scene {
             slot.text = "";
 
             if(icon !== undefined){
+                this.updateInventoryIconSprite(icon, upgradeId, hasIcon);
                 icon.visible = hasIcon;
             }
         });
@@ -814,6 +873,7 @@ export default abstract class MBLevel extends Scene {
             slot.text = hasIcon ? "" : (isOwned ? metadata.shortLabel : "???");
 
             if(icon !== undefined){
+                this.updateInventoryIconSprite(icon, upgradeId, hasIcon);
                 icon.visible = hasIcon;
             }
         });
@@ -823,9 +883,41 @@ export default abstract class MBLevel extends Scene {
         switch(upgradeId){
             case UpgradeId.LANTERN:
                 return MBLevel.LANTERN_ICON_KEY;
+            case UpgradeId.FUR_COAT:
+                return MBLevel.FUR_COAT_ICON_KEY;
+            case UpgradeId.DOUBLE_JUMP:
+                return MBLevel.DOUBLE_JUMP_ICON_KEY;
+            case UpgradeId.REVIVAL_TOTEM_L1:
+            case UpgradeId.REVIVAL_TOTEM_L3:
+                return MBLevel.REVIVAL_ICON_KEY;
+            case UpgradeId.UPGRADED_BOOTS:
+                return MBLevel.UPGRADED_BOOTS_ICON_KEY;
+            case UpgradeId.ICE_PICK:
+                return MBLevel.ICE_PICK_ICON_KEY;
+            case UpgradeId.SHATTERDIVE:
+                return MBLevel.SHATTERDIVE_ICON_KEY;
+            case UpgradeId.HEALTH_BUFF:
+                return MBLevel.HEALTH_BUFF_ICON_KEY;
+            case UpgradeId.UPGRADED_SWORD:
+                return MBLevel.UPGRADED_SWORD_ICON_KEY;
             default:
                 return null;
         }
+    }
+
+    protected updateInventoryIconSprite(icon: Sprite, upgradeId: UpgradeId | null, visible: boolean): void {
+        if(upgradeId === null || !visible){
+            return;
+        }
+
+        const imageKey = this.getUpgradeIconImageKey(upgradeId);
+        if(imageKey === null || icon.imageId === imageKey){
+            return;
+        }
+
+        icon.imageId = imageKey;
+        const image = ResourceManager.getInstance().getImage(imageKey);
+        icon.size.set(image.width, image.height);
     }
 
     protected setPauseInventorySelection(upgradeId: UpgradeId | null): void {
@@ -900,6 +992,51 @@ export default abstract class MBLevel extends Scene {
         }
 
         return lines;
+    }
+
+    protected showUpgradeRewardPopup(upgradeId: UpgradeId, onConfirm?: () => void): void {
+        const metadata = UPGRADE_METADATA[upgradeId];
+        const rewardText = `${metadata.name} has been added to your inventory. ${metadata.description}`;
+        const wrappedLines = this.wrapPausePopupDescription(rewardText, 34, this.upgradeRewardLines.length);
+
+        this.upgradeRewardTitle.text = "UPGRADE ACQUIRED";
+        this.upgradeRewardLines.forEach((line, index) => {
+            line.text = wrappedLines[index] ?? "";
+        });
+
+        this.upgradeRewardOpen = true;
+        this.upgradeRewardOnConfirm = onConfirm ?? null;
+        this.pauseCheatInput.focused = false;
+
+        for(const element of this.upgradeRewardElements){
+            element.visible = true;
+        }
+
+        this.setGameplayPaused(true);
+    }
+
+    protected confirmUpgradeRewardPopup(): void {
+        if(!this.upgradeRewardOpen){
+            return;
+        }
+
+        const onConfirm = this.upgradeRewardOnConfirm;
+        this.hideUpgradeRewardPopup();
+
+        if(onConfirm !== null){
+            onConfirm();
+        }
+    }
+
+    protected hideUpgradeRewardPopup(): void {
+        this.upgradeRewardOpen = false;
+        this.upgradeRewardOnConfirm = null;
+
+        for(const element of this.upgradeRewardElements){
+            element.visible = false;
+        }
+
+        this.setGameplayPaused(this.pauseMenuOpen);
     }
     /* Initialization methods for everything in the scene */
 
@@ -1238,6 +1375,8 @@ export default abstract class MBLevel extends Scene {
             ],
             onEnd: MBEvents.LEVEL_START
         });
+
+        this.initializeUpgradeRewardUI();
     }
 
     protected initializeBossUI(namePosition: Vec2, barPosition: Vec2, nameSize: Vec2, barSize: Vec2, barRadius: number): void {
@@ -1507,6 +1646,70 @@ export default abstract class MBLevel extends Scene {
         return button;
     }
 
+    protected initializeUpgradeRewardUI(): void {
+        const size = this.viewport.getHalfSize();
+        const viewSize = size.scaled(2);
+        const viewportPosition = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
+        const viewportGraphicSize = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
+
+        this.upgradeRewardOverlay = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: size.clone(),
+            size: viewSize
+        });
+        this.upgradeRewardOverlay.color = new Color(12, 10, 18, 0.78);
+        this.upgradeRewardOverlay.visible = false;
+        this.upgradeRewardElements.push(this.upgradeRewardOverlay);
+
+        this.upgradeRewardPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: viewportPosition(600, 360),
+            size: viewportGraphicSize(430, 250)
+        });
+        this.upgradeRewardPanel.color = new Color(20, 18, 24, 0.96);
+        this.upgradeRewardPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.upgradeRewardPanel.visible = false;
+        this.upgradeRewardElements.push(this.upgradeRewardPanel);
+
+        this.upgradeRewardTitle = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: viewportPosition(600, 285),
+            text: ""
+        });
+        this.upgradeRewardTitle.size.copy(viewportGraphicSize(340, 28));
+        this.upgradeRewardTitle.font = "PixelSimple";
+        this.upgradeRewardTitle.fontSize = 22;
+        this.upgradeRewardTitle.textColor = new Color(246, 238, 214, 1);
+        this.upgradeRewardTitle.visible = false;
+        this.upgradeRewardElements.push(this.upgradeRewardTitle);
+
+        for(let i = 0; i < 5; i++){
+            const line = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+                position: viewportPosition(600, 332 + i * 26),
+                text: ""
+            });
+            line.size.copy(viewportGraphicSize(340, 20));
+            line.font = "PixelSimple";
+            line.fontSize = 14;
+            line.textColor = new Color(225, 224, 230, 1);
+            line.visible = false;
+            this.upgradeRewardLines.push(line);
+            this.upgradeRewardElements.push(line);
+        }
+
+        this.upgradeRewardConfirmButton = <Button>this.add.uiElement(UIElementType.BUTTON, MBLayers.UI, {
+            position: viewportPosition(600, 440),
+            text: "OK"
+        });
+        this.upgradeRewardConfirmButton.backgroundColor = new Color(26, 22, 28, 0.92);
+        this.upgradeRewardConfirmButton.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.upgradeRewardConfirmButton.borderRadius = 4;
+        this.upgradeRewardConfirmButton.setPadding(new Vec2(40, 8));
+        this.upgradeRewardConfirmButton.font = "PixelSimple";
+        this.upgradeRewardConfirmButton.fontSize = 20;
+        this.upgradeRewardConfirmButton.textColor = new Color(246, 238, 214, 1);
+        this.upgradeRewardConfirmButton.onClick = () => this.confirmUpgradeRewardPopup();
+        this.upgradeRewardConfirmButton.visible = false;
+        this.upgradeRewardElements.push(this.upgradeRewardConfirmButton);
+    }
+
     /**
      * Initializes the particles system used by the player's weapon.
      */
@@ -1547,7 +1750,11 @@ export default abstract class MBLevel extends Scene {
         this.player.position.copy(this.playerSpawn);
         
         // Give the player physics
-        this.player.addPhysics(new AABB(this.player.position.clone(), this.player.boundary.getHalfSize().clone()));
+        const playerHitbox = MBLevel.PLAYER_HITBOX_TUNING;
+        this.player.addPhysics(
+            new AABB(this.player.position.clone(), new Vec2(playerHitbox.halfWidth, playerHitbox.halfHeight)),
+            new Vec2(0, playerHitbox.offsetY)
+        );
 
         // TODO - give the player their flip tween
 

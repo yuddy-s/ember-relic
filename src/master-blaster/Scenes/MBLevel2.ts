@@ -28,19 +28,54 @@ export default class Level2 extends MBLevel {
     private level2BossSprite!: MBAnimatedSprite;
     private bossDefeatVignetteTimer: number = 0;
     private bossDefeatVignetteDelayStarted: boolean = false;
+    private furCoatRewardShown: boolean = false;
+    private furCoatGrantedFromBoss: boolean = false;
+    private level2BossProgressRecorded: boolean = false;
     // new Vec2(1536, 752) 2600, 1050
-    public static readonly PLAYER_SPAWN = new Vec2(1536, 752);
+    public static readonly PLAYER_SPAWN = new Vec2(1536, 740);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
     public static readonly VORRATH_SPRITE_PATH = "game_assets/spritesheets/enemies/bosses/vorrath.json";
+    public static readonly VORRATH_ROCK_KEY = "VORRATH_ROCK_KEY";
+    public static readonly VORRATH_ROCK_PATH = "game_assets/spritesheets/enemies/bosses/vorrath-rock.png";
+    public static readonly LAVA_PILLAR_KEY = "LAVA_PILLAR_KEY";
+    public static readonly LAVA_PILLAR_PATH = "game_assets/art/lava-pillar.png";
     public static readonly VORRATH_SPAWN = new Vec2(2448, 1050);
     public static readonly VORRATH_SCALE = new Vec2(0.4, 0.4);
     public static readonly VORRATH_HITBOX_HALF_SIZE = new Vec2(72, 104);
     public static readonly VORRATH_VISUAL_OFFSET_Y = 8;
-    public static readonly VORRATH_AGGRO_RANGE = 80;
+    public static readonly VORRATH_AGGRO_RANGE = 100;
+    public static readonly VORRATH_AGGRO_HEIGHT_THRESHOLD = 70;
     public static readonly VORRATH_ATTACK_RANGE = 140;
-    public static readonly VORRATH_MOVE_SPEED = 75;
+    public static readonly VORRATH_TWO_HAND_SLAM_RANGE = 430;
+    public static readonly VORRATH_TWO_HAND_SLAM_LANE_THRESHOLD = 95;
+    public static readonly VORRATH_LAVA_PILLAR_SPAWN_COUNT = 6;
+    public static readonly VORRATH_LAVA_PILLAR_BOSS_CLEAR_DISTANCE = 5 * 16;
+    public static readonly VORRATH_MOVE_SPEED = 60;
+    public static readonly VORRATH_ARENA_WALL_LAVA_PILLAR_BASE_POINTS = [
+        new Vec2(2208, 1136),
+        new Vec2(2704, 1136)
+    ];
+    // Edit these x/y points to move the red warning beams and lava pillars.
+    // Y = -1 means "snap this pillar to the floor automatically at that x position".
+    // These are the random arena slots the two-hand slam will pick from.
+    // on tiled, from 138 to 185 is playable on x 
+    public static readonly VORRATH_LAVA_PILLAR_BASE_POINTS = [
+        new Vec2(2700, 1136),
+        new Vec2(2690, 1136),
+        new Vec2(2670, 1136),
+        new Vec2(2600, 1136),
+        new Vec2(2548, 1136),
+        new Vec2(2512, 1136),
+        new Vec2(2464, 1136),
+        new Vec2(2416, 1136),
+        new Vec2(2384, 1136),
+        new Vec2(2336, 1136),
+        new Vec2(2320, 1136),
+        new Vec2(2272, 1136),
+        new Vec2(2256, 1136)
+    ];
     public static readonly CAVE_VIGNETTE_KEY = "CAVE_VIGNETTE";
     public static readonly CAVE_VIGNETTE_PATH = "game_assets/art/cave-vignette.png";
     public static readonly BLIND_VIGNETTE_KEY = "BLIND_VIGNETTE";
@@ -49,7 +84,7 @@ export default class Level2 extends MBLevel {
     public static readonly VIGNETTE_FADE_SPEED = 0.5;
     public static readonly POST_BOSS_VIGNETTE_DELAY = 6;
     public static readonly BOSS_NAME = "Vorrath, The Ashen";
-    public static readonly BOSS_MAX_HEALTH = 13;
+    public static readonly BOSS_MAX_HEALTH = 30;
 
     public static readonly TILEMAP_KEY = "LEVEL2";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/cave.json";
@@ -105,11 +140,21 @@ export default class Level2 extends MBLevel {
         // Load in the player's sprite
         this.load.spritesheet(this.playerSpriteKey, Level2.PLAYER_SPRITE_PATH);
         this.load.spritesheet(Level2.VORRATH_SPRITE_KEY, Level2.VORRATH_SPRITE_PATH);
+        this.load.image(Level2.VORRATH_ROCK_KEY, Level2.VORRATH_ROCK_PATH);
+        this.load.image(Level2.LAVA_PILLAR_KEY, Level2.LAVA_PILLAR_PATH);
         // Load the cave visibility vignette overlay
         this.load.image(Level2.CAVE_VIGNETTE_KEY, Level2.CAVE_VIGNETTE_PATH);
         this.load.image(Level2.BLIND_VIGNETTE_KEY, Level2.BLIND_VIGNETTE_PATH);
         // Temporary upgrade icon for inventory UI testing
         this.load.image(MBLevel.LANTERN_ICON_KEY, MBLevel.LANTERN_ICON_PATH);
+        this.load.image(MBLevel.FUR_COAT_ICON_KEY, MBLevel.FUR_COAT_ICON_PATH);
+        this.load.image(MBLevel.DOUBLE_JUMP_ICON_KEY, MBLevel.DOUBLE_JUMP_ICON_PATH);
+        this.load.image(MBLevel.REVIVAL_ICON_KEY, MBLevel.REVIVAL_ICON_PATH);
+        this.load.image(MBLevel.UPGRADED_BOOTS_ICON_KEY, MBLevel.UPGRADED_BOOTS_ICON_PATH);
+        this.load.image(MBLevel.ICE_PICK_ICON_KEY, MBLevel.ICE_PICK_ICON_PATH);
+        this.load.image(MBLevel.SHATTERDIVE_ICON_KEY, MBLevel.SHATTERDIVE_ICON_PATH);
+        this.load.image(MBLevel.HEALTH_BUFF_ICON_KEY, MBLevel.HEALTH_BUFF_ICON_PATH);
+        this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
         // Audio and music
         this.load.audio(this.levelMusicKey, Level2.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level2.JUMP_AUDIO_PATH);
@@ -126,10 +171,14 @@ export default class Level2 extends MBLevel {
         this.nextLevel = MainMenu;
         this.bossDefeatVignetteTimer = 0;
         this.bossDefeatVignetteDelayStarted = false;
+        this.furCoatRewardShown = false;
+        this.furCoatGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.FUR_COAT);
+        this.level2BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level2Boss.id);
     }
 
     public updateScene(deltaT: number): void {
         super.updateScene(deltaT);
+        this.updateBossRewardState();
         this.updateBossDefeatVignetteTimer(deltaT);
         this.updateVisibilityVignettes(deltaT);
     }
@@ -159,14 +208,25 @@ export default class Level2 extends MBLevel {
         this.level2BossSprite.setGroup(MBPhysicsGroups.BOSS);
         this.level2BossSprite.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.BOSS_PARTICLE_HIT, "");
         this.level2BossSprite.animation.play(VorrathAnimations.IDLE, true);
+        const lavaPillarBasePoints = this.buildVorrathLavaPillarBasePoints();
+        const arenaWallLavaPillarBasePoints = this.buildArenaWallLavaPillarBasePoints();
         this.level2BossSprite.addAI(VorrathController, {
             bossState: this.level2Boss,
             player: this.player,
             tilemap: this.wallsLayerKey,
             hitboxHalfSize: scaledBossHitbox,
+            projectileImageKey: Level2.VORRATH_ROCK_KEY,
+            lavaPillarImageKey: Level2.LAVA_PILLAR_KEY,
+            lavaPillarBasePoints,
+            arenaWallLavaPillarBasePoints,
             moveSpeed: Level2.VORRATH_MOVE_SPEED,
             aggroRange: Level2.VORRATH_AGGRO_RANGE,
-            attackRange: Level2.VORRATH_ATTACK_RANGE
+            aggroHeightThreshold: Level2.VORRATH_AGGRO_HEIGHT_THRESHOLD,
+            attackRange: Level2.VORRATH_ATTACK_RANGE,
+            twoHandSlamRange: Level2.VORRATH_TWO_HAND_SLAM_RANGE,
+            twoHandSlamLaneThreshold: Level2.VORRATH_TWO_HAND_SLAM_LANE_THRESHOLD,
+            lavaPillarSpawnCount: Level2.VORRATH_LAVA_PILLAR_SPAWN_COUNT,
+            lavaPillarBossClearDistance: Level2.VORRATH_LAVA_PILLAR_BOSS_CLEAR_DISTANCE
         });
     }
 
@@ -284,6 +344,49 @@ export default class Level2 extends MBLevel {
         }
     }
 
+    protected buildVorrathLavaPillarBasePoints(): Vec2[] {
+        return Level2.VORRATH_LAVA_PILLAR_BASE_POINTS.map(point => {
+            if(point.y >= 0){
+                return point.clone();
+            }
+
+            return this.resolveGroundBasePoint(point.x);
+        });
+    }
+
+    protected buildArenaWallLavaPillarBasePoints(): Vec2[] {
+        return Level2.VORRATH_ARENA_WALL_LAVA_PILLAR_BASE_POINTS.map(point => {
+            if(point.y >= 0){
+                return point.clone();
+            }
+
+            return this.resolveGroundBasePoint(point.x);
+        });
+    }
+
+    protected resolveGroundBasePoint(x: number): Vec2 {
+        if(this.walls === undefined){
+            return new Vec2(x, 0);
+        }
+
+        const tileSize = this.walls.getTileSize();
+        const worldHeight = this.walls.getDimensions().y;
+        const samplePoint = new Vec2(x, this.playerSpawn.y);
+        const col = this.walls.getColRowAt(samplePoint).x;
+        const startRow = Math.max(0, this.walls.getColRowAt(samplePoint).y - 10);
+
+        for(let row = startRow; row < worldHeight; row++){
+            if(!this.walls.isTileCollidable(col, row)){
+                continue;
+            }
+
+            const tileTopY = row * tileSize.y * this.tilemapScale.y;
+            return new Vec2(x, tileTopY);
+        }
+
+        return new Vec2(x, samplePoint.y);
+    }
+
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
             case ProgressTargetSceneId.LEVEL_1:
@@ -293,5 +396,32 @@ export default class Level2 extends MBLevel {
             default:
                 return null;
         }
+    }
+
+    protected updateBossRewardState(): void {
+        if(this.level2Boss === undefined || !this.level2Boss.isDefeated()){
+            return;
+        }
+
+        if(!this.level2BossProgressRecorded){
+            MBProgress.defeatBoss(this.level2Boss.id);
+            this.level2BossProgressRecorded = true;
+        }
+
+        if(this.furCoatGrantedFromBoss || this.furCoatRewardShown || MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
+            this.furCoatGrantedFromBoss = true;
+            return;
+        }
+
+        const dyingStillPlaying = this.level2BossSprite !== undefined && this.level2BossSprite.animation.isPlaying(VorrathAnimations.DYING);
+        if(dyingStillPlaying){
+            return;
+        }
+
+        this.furCoatRewardShown = true;
+        this.showUpgradeRewardPopup(UpgradeId.FUR_COAT, () => {
+            this.grantUpgrade(UpgradeId.FUR_COAT);
+            this.furCoatGrantedFromBoss = true;
+        });
     }
 }

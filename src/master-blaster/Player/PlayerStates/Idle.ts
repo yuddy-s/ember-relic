@@ -8,8 +8,10 @@ export default class Idle extends PlayerState {
 	public onEnter(options: Record<string, any>): void {
         this.owner.animation.play(PlayerAnimations.IDLE, true);
 		this.parent.speed = this.parent.MIN_SPEED;
-        this.parent.velocity.x = 0;
-        this.parent.velocity.y = 0;
+        if(!options?.preserveMomentum){
+            this.parent.velocity.x = 0;
+            this.parent.velocity.y = 0;
+        }
 	}
 
 	public update(deltaT: number): void {
@@ -37,6 +39,7 @@ export default class Idle extends PlayerState {
         } 
         // Otherwise, do nothing (keep idling)
         else {
+            this.parent.velocity.x += (0 - this.parent.velocity.x) * Math.min(1, 12 * deltaT);
             // Update the vertical velocity of the player
             this.parent.velocity.y += this.gravity*deltaT;
             // Move the player

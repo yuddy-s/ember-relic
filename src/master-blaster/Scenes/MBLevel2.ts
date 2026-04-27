@@ -29,7 +29,7 @@ export default class Level2 extends MBLevel {
     private bossDefeatVignetteTimer: number = 0;
     private bossDefeatVignetteDelayStarted: boolean = false;
     // new Vec2(1536, 752) 2600, 1050
-    public static readonly PLAYER_SPAWN = new Vec2(2600, 1050);
+    public static readonly PLAYER_SPAWN = new Vec2(1536, 752);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
@@ -54,7 +54,7 @@ export default class Level2 extends MBLevel {
     public static readonly TILEMAP_KEY = "LEVEL2";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/cave.json";
     public static readonly TILEMAP_SCALE = new Vec2(1, 1);
-    public static readonly DESTRUCTIBLE_LAYER_KEY = "Destructable";
+    public static readonly DESTRUCTIBLE_LAYER_KEY = undefined;
     public static readonly WALLS_LAYER_KEY = "Main";
 
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";

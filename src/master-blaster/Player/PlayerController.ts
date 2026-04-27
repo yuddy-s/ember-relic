@@ -70,7 +70,7 @@ export default class PlayerController extends StateMachineAI {
 
     protected readonly DASH_DURATION: number = 0.2;
     protected readonly DASH_COOLDOWN: number = 0.5;
-    protected readonly ATTACK_COOLDOWN: number = 0.32;
+    protected readonly ATTACK_COOLDOWN: number = 0.4;
     protected readonly COYOTE_TIME: number = 0.1;
     protected readonly JUMP_BUFFER_TIME: number = 0.1;
     protected readonly POST_HIT_INVULNERABILITY: number = 0.55;
@@ -150,6 +150,12 @@ export default class PlayerController extends StateMachineAI {
      */
     public get faceDir(): Vec2 { return this.owner.position.dirTo(Input.getGlobalMousePosition()); }
 
+    public faceToward(direction: Vec2): void {
+        if(direction.x !== 0){
+            this.owner.invertX = MathUtils.sign(direction.x) < 0;
+        }
+    }
+
     public update(deltaT: number): void {
         if(this.flyMode){
             this.updateFly(deltaT);
@@ -176,10 +182,12 @@ export default class PlayerController extends StateMachineAI {
 
         // If the player hits the attack button and the weapon system isn't running, fire in the mouse direction.
         if (!this.isDashing() && this.canAttack() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
-            this.weapon.setSlashDirection(this.faceDir);
+            const attackDirection = this.faceDir;
+            this.faceToward(attackDirection);
+            this.weapon.setSlashDirection(attackDirection);
 
             // Start the particle system at the player's current position
-            const slashOrigin = this.owner.position.clone().add(this.faceDir.clone().normalize().scale(8));
+            const slashOrigin = this.owner.position.clone().add(attackDirection.clone().normalize().scale(8));
             this.weapon.startSystem(180, 0, slashOrigin);
             this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
             this.owner.animation.queue(PlayerAnimations.IDLE);
@@ -221,9 +229,11 @@ export default class PlayerController extends StateMachineAI {
         this.owner.move(this.velocity.scaled(deltaT));
 
         if(!this.isDashing() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
-            this.weapon.setSlashDirection(this.faceDir);
+            const attackDirection = this.faceDir;
+            this.faceToward(attackDirection);
+            this.weapon.setSlashDirection(attackDirection);
 
-            const slashOrigin = this.owner.position.clone().add(this.faceDir.clone().normalize().scale(8));
+            const slashOrigin = this.owner.position.clone().add(attackDirection.clone().normalize().scale(8));
             this.weapon.startSystem(180, 0, slashOrigin);
             this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
             this.owner.animation.queue(PlayerAnimations.IDLE);

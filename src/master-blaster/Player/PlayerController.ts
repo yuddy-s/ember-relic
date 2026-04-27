@@ -119,8 +119,8 @@ export default class PlayerController extends StateMachineAI {
         this.attackCooldownTimer = 0;
         this.flyMode = false;
 
-        this.health = 5
-        this.maxHealth = 5;
+        this.health = 100
+        this.maxHealth = 100;
 
         // Add the different states the player can be in to the PlayerController 
 		this.addState(PlayerStates.IDLE, new Idle(this, this.owner));

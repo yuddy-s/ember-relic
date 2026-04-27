@@ -127,6 +127,7 @@ export default abstract class MBLevel extends Scene {
     protected bossDamageCooldownTimer: number;
     protected bossDamageCooldownDuration: number;
     protected damagingTileDamage: number;
+    protected damagingTileKnockbackSpeed: number;
 
     /** Sound and music */
     protected levelMusicKey!: string;
@@ -248,6 +249,7 @@ export default abstract class MBLevel extends Scene {
         this.bossDamageCooldownTimer = 0;
         this.bossDamageCooldownDuration = 0.2;
         this.damagingTileDamage = 1;
+        this.damagingTileKnockbackSpeed = 170;
     }
 
     public initScene(init: Record<string, any>): void {
@@ -1002,23 +1004,23 @@ export default abstract class MBLevel extends Scene {
         const verticalInset = Math.min(4, Math.max(1, playerBounds.hh * 0.2));
         const probeDistance = 2;
         const damagingProbes = [
-            new Vec2(playerBounds.left + horizontalInset, playerBounds.top - probeDistance),
-            new Vec2(playerBounds.center.x, playerBounds.top - probeDistance),
-            new Vec2(playerBounds.right - horizontalInset, playerBounds.top - probeDistance),
-            new Vec2(playerBounds.left + horizontalInset, playerBounds.bottom + probeDistance),
-            new Vec2(playerBounds.center.x, playerBounds.bottom + probeDistance),
-            new Vec2(playerBounds.right - horizontalInset, playerBounds.bottom + probeDistance),
-            new Vec2(playerBounds.left - probeDistance, playerBounds.top + verticalInset),
-            new Vec2(playerBounds.left - probeDistance, playerBounds.center.y),
-            new Vec2(playerBounds.left - probeDistance, playerBounds.bottom - verticalInset),
-            new Vec2(playerBounds.right + probeDistance, playerBounds.top + verticalInset),
-            new Vec2(playerBounds.right + probeDistance, playerBounds.center.y),
-            new Vec2(playerBounds.right + probeDistance, playerBounds.bottom - verticalInset)
+            { position: new Vec2(playerBounds.left + horizontalInset, playerBounds.top - probeDistance), direction: Vec2.DOWN },
+            { position: new Vec2(playerBounds.center.x, playerBounds.top - probeDistance), direction: Vec2.DOWN },
+            { position: new Vec2(playerBounds.right - horizontalInset, playerBounds.top - probeDistance), direction: Vec2.DOWN },
+            { position: new Vec2(playerBounds.left + horizontalInset, playerBounds.bottom + probeDistance), direction: Vec2.UP },
+            { position: new Vec2(playerBounds.center.x, playerBounds.bottom + probeDistance), direction: Vec2.UP },
+            { position: new Vec2(playerBounds.right - horizontalInset, playerBounds.bottom + probeDistance), direction: Vec2.UP },
+            { position: new Vec2(playerBounds.left - probeDistance, playerBounds.top + verticalInset), direction: Vec2.RIGHT },
+            { position: new Vec2(playerBounds.left - probeDistance, playerBounds.center.y), direction: Vec2.RIGHT },
+            { position: new Vec2(playerBounds.left - probeDistance, playerBounds.bottom - verticalInset), direction: Vec2.RIGHT },
+            { position: new Vec2(playerBounds.right + probeDistance, playerBounds.top + verticalInset), direction: Vec2.LEFT },
+            { position: new Vec2(playerBounds.right + probeDistance, playerBounds.center.y), direction: Vec2.LEFT },
+            { position: new Vec2(playerBounds.right + probeDistance, playerBounds.bottom - verticalInset), direction: Vec2.LEFT }
         ];
 
         for(const probe of damagingProbes){
-            if(this.isDamagingTileAt(probe)){
-                controller.applyDamage(this.damagingTileDamage);
+            if(this.isDamagingTileAt(probe.position)){
+                controller.applyDamage(this.damagingTileDamage, this.getDamagingTileKnockback(probe.direction));
                 return;
             }
         }
@@ -1034,7 +1036,10 @@ export default abstract class MBLevel extends Scene {
         for(let col = minIndex.x; col <= maxIndex.x; col++){
             for(let row = minIndex.y; row <= maxIndex.y; row++){
                 if(this.damaging.isTileCollidable(col, row)){
-                    controller.applyDamage(this.damagingTileDamage);
+                    controller.applyDamage(
+                        this.damagingTileDamage,
+                        this.getDamagingTileKnockbackFromTile(playerBounds.center, col, row)
+                    );
                     return;
                 }
             }
@@ -1048,6 +1053,36 @@ export default abstract class MBLevel extends Scene {
 
         const tileIndex = this.damaging.getColRowAt(worldPosition);
         return this.damaging.isTileCollidable(tileIndex.x, tileIndex.y);
+    }
+
+    protected getDamagingTileKnockback(direction: Vec2): Vec2 {
+        const knockbackDirection = direction.clone();
+        if(knockbackDirection.isZero()){
+            knockbackDirection.set(0, -1);
+        } else {
+            knockbackDirection.normalize();
+        }
+
+        return knockbackDirection.scale(this.damagingTileKnockbackSpeed);
+    }
+
+    protected getDamagingTileKnockbackFromTile(playerCenter: Vec2, col: number, row: number): Vec2 {
+        if(this.damaging === undefined){
+            return this.getDamagingTileKnockback(Vec2.UP);
+        }
+
+        const tileSize = this.damaging.getTileSize();
+        const tileCenter = new Vec2(
+            col * tileSize.x + tileSize.x / 2,
+            row * tileSize.y + tileSize.y / 2
+        );
+
+        const awayDirection = tileCenter.vecTo(playerCenter);
+        if(awayDirection.isZero()){
+            awayDirection.set(0, -1);
+        }
+
+        return this.getDamagingTileKnockback(awayDirection);
     }
 
     /**

@@ -45,9 +45,9 @@
     {
       "name": "TAKE_DAMAGE_RIGHT",
       "frames": [
-        { "index": 14, "duration": 10 },
-        { "index": 15, "duration": 10 },
-        { "index": 16, "duration": 10 }
+        { "index": 14, "duration": 4 },
+        { "index": 15, "duration": 4 },
+        { "index": 16, "duration": 4 }
       ]
     },
     {

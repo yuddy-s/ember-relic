@@ -18,8 +18,10 @@ import { MBEvents } from "../MBEvents";
 import Dead from "./PlayerStates/Dead";
 import Dying from "./PlayerStates/Dying";
 import TakingDamage from "./PlayerStates/TakingDamage";
+import WallLatch from "./PlayerStates/WallLatch";
 import { TweenableProperties } from "../../Wolfie2D/Nodes/GameNode";
 import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
+import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 
 type DamageModifyingScene = {
     modifyIncomingPlayerDamage?: (amount: number, damageType: string) => number;
@@ -37,6 +39,7 @@ export const PlayerAnimations = {
     FALL_RIGHT: "FALL_RIGHT",
     TAKE_DAMAGE_RIGHT: "TAKE_DAMAGE_RIGHT",
     ATTACK_RIGHT: "ATTACK_RIGHT",
+    WALL_LATCH: "WALL_LATCH",
     DYING: "DYING",
     DEAD: "DEAD",
 } as const
@@ -57,6 +60,7 @@ export const PlayerStates = {
     WALK: "WALK",
 	JUMP: "JUMP",
     FALL: "FALL",
+    WALL_LATCH: "WALL_LATCH",
     DASH: "DASH",
     TAKINGDAMAGE: "TAKINGDAMAGE",
     DYING: "DYING",
@@ -71,12 +75,15 @@ export default class PlayerController extends StateMachineAI {
     public readonly MIN_SPEED: number = 130;
     public readonly DASH_SPEED: number = 500;
     public readonly FLY_SPEED: number = 220;
+    public readonly WALL_JUMP_X_SPEED: number = 220;
+    public readonly WALL_JUMP_Y_SPEED: number = -330;
 
     protected readonly DASH_DURATION: number = 0.2;
     protected readonly DASH_COOLDOWN: number = 0.5;
     protected readonly ATTACK_COOLDOWN: number = 0.4;
     protected readonly COYOTE_TIME: number = 0.1;
     protected readonly JUMP_BUFFER_TIME: number = 0.1;
+    protected readonly WALL_LATCH_COOLDOWN: number = 0.15;
     protected readonly POST_HIT_INVULNERABILITY: number = 0.55;
 
     /** Health and max health for the player */
@@ -103,6 +110,8 @@ export default class PlayerController extends StateMachineAI {
     protected invulnerabilityTimer: number;
     protected attackCooldownTimer: number;
     protected flyMode: boolean;
+    protected wallLatchDirection: number;
+    protected wallLatchCooldownTimer: number;
 
     
     public initializeAI(owner: MBAnimatedSprite, options: Record<string, any>){
@@ -124,6 +133,8 @@ export default class PlayerController extends StateMachineAI {
         this.invulnerabilityTimer = 0;
         this.attackCooldownTimer = 0;
         this.flyMode = false;
+        this.wallLatchDirection = 0;
+        this.wallLatchCooldownTimer = 0;
 
         this.health = 100
         this.maxHealth = 100;
@@ -133,6 +144,7 @@ export default class PlayerController extends StateMachineAI {
         this.addState(PlayerStates.WALK, new Walk(this, this.owner));
         this.addState(PlayerStates.JUMP, new Jump(this, this.owner));
         this.addState(PlayerStates.FALL, new Fall(this, this.owner));
+        this.addState(PlayerStates.WALL_LATCH, new WallLatch(this, this.owner));
         this.addState(PlayerStates.DASH, new Dash(this, this.owner));
         this.addState(PlayerStates.TAKINGDAMAGE, new TakingDamage(this, this.owner));
         this.addState(PlayerStates.DYING, new Dying(this, this.owner));
@@ -172,6 +184,7 @@ export default class PlayerController extends StateMachineAI {
 
         this.invulnerabilityTimer = Math.max(0, this.invulnerabilityTimer - deltaT);
         this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - deltaT);
+        this.wallLatchCooldownTimer = Math.max(0, this.wallLatchCooldownTimer - deltaT);
 
         if(Input.isJustPressed(MBControls.JUMP)){
             this.jumpBufferTimer = this.JUMP_BUFFER_TIME;
@@ -290,6 +303,86 @@ export default class PlayerController extends StateMachineAI {
 
     public shouldStartJump(): boolean {
         return !this.isDashing() && this.jumpBufferTimer > 0 && (this.owner.onGround || this.coyoteTimer > 0);
+    }
+
+    public hasIcePick(): boolean {
+        return MBProgress.hasUpgrade(UpgradeId.ICE_PICK);
+    }
+
+    public tryStartWallLatch(): boolean {
+        if(!this.hasIcePick() || this.owner.onGround || this.isDashing() || this.wallLatchCooldownTimer > 0){
+            return false;
+        }
+
+        const inputDirection = this.inputDir.x;
+        if(inputDirection === 0){
+            return false;
+        }
+
+        const direction = MathUtils.sign(inputDirection);
+        if(!this.isWallOnSide(direction)){
+            return false;
+        }
+
+        this.wallLatchDirection = direction;
+        this.jumpBufferTimer = 0;
+        this.velocity.x = 0;
+        this.velocity.y = 0;
+        return true;
+    }
+
+    public shouldKeepWallLatch(): boolean {
+        return this.hasIcePick()
+            && !this.owner.onGround
+            && this.wallLatchDirection !== 0
+            && this.isWallOnSide(this.wallLatchDirection);
+    }
+
+    public isHoldingWallLatchDirection(): boolean {
+        return this.inputDir.x === this.wallLatchDirection;
+    }
+
+    public wallJump(): void {
+        this.consumeJumpBuffer();
+        this.velocity.x = -this.wallLatchDirection * this.WALL_JUMP_X_SPEED;
+        this.velocity.y = this.WALL_JUMP_Y_SPEED;
+        this.wallLatchCooldownTimer = this.WALL_LATCH_COOLDOWN;
+        this.wallLatchDirection = 0;
+    }
+
+    public getWallLatchDirection(): number {
+        return this.wallLatchDirection;
+    }
+
+    protected isWallOnSide(direction: number): boolean {
+        if(this.tilemap === undefined || direction === 0){
+            return false;
+        }
+
+        const sideX = direction < 0
+            ? this.owner.boundary.left - 2
+            : this.owner.boundary.right + 2;
+        const topY = this.owner.boundary.top + 4;
+        const midY = this.owner.position.y;
+        const bottomY = this.owner.boundary.bottom - 4;
+
+        return this.isTilemapSolidAt(sideX, topY)
+            || this.isTilemapSolidAt(sideX, midY)
+            || this.isTilemapSolidAt(sideX, bottomY);
+    }
+
+    protected isTilemapSolidAt(x: number, y: number): boolean {
+        const tile = this.tilemap.getColRowAt(new Vec2(x, y));
+        if(this.tilemap.isTileCollidable(tile.x, tile.y)){
+            return true;
+        }
+
+        if(this.slidingTilemap === null || this.slidingTilemap === undefined){
+            return false;
+        }
+
+        const slidingTile = this.slidingTilemap.getColRowAt(new Vec2(x, y));
+        return this.slidingTilemap.isTileCollidable(slidingTile.x, slidingTile.y);
     }
 
     public isOnIce(): boolean {

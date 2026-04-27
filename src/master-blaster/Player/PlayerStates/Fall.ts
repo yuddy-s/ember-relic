@@ -24,6 +24,10 @@ export default class Fall extends PlayerState {
                 this.finished(PlayerStates.IDLE);
             }
         }
+        // If the player has the ice pick and holds into a wall, latch onto it
+        else if (this.parent.tryStartWallLatch()) {
+            this.finished(PlayerStates.WALL_LATCH);
+        }
         // Allow dash while airborne
         else if (Input.isJustPressed(MBControls.DASH) && this.parent.canDash()) {
             this.finished(PlayerStates.DASH);

@@ -13,7 +13,9 @@ export default class Jump extends PlayerState {
         // Get the jump audio key for the player
         let jumpAudio = this.owner.getScene().getJumpAudioKey();
         // Give the player a burst of upward momentum
-        this.parent.velocity.y = -320;
+        if(!options?.preserveMomentum){
+            this.parent.velocity.y = -320;
+        }
         // Play the jump sound for the player
 		this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: jumpAudio, loop: false, holdReference: false});
 	}
@@ -26,6 +28,10 @@ export default class Jump extends PlayerState {
         if (this.owner.onGround && this.parent.velocity.y >= 0) {
 			this.finished(PlayerStates.IDLE);
 		} 
+        // If the player has the ice pick and holds into a wall, latch onto it
+        else if (this.parent.tryStartWallLatch()) {
+            this.finished(PlayerStates.WALL_LATCH);
+        }
         // Allow dash while airborne
         else if (Input.isJustPressed(MBControls.DASH) && this.parent.canDash()) {
             this.finished(PlayerStates.DASH);

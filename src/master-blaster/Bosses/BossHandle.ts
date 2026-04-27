@@ -11,6 +11,7 @@ export interface BossHandle {
     hasFightStarted(): boolean;
     getCurrentHealth(): number;
     getMaxHealth(): number;
+    damage(amount: number): void;
     isDefeated(): boolean;
     defeat(): void;
 }

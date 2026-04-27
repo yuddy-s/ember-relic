@@ -25,7 +25,7 @@ export default class Level2Boss implements BossHandle {
     private fightStarted: boolean;
     private defeated: boolean;
 
-    public constructor(displayName: string = "Seris the Scaleless", maxHealth: number = 250) {
+    public constructor(displayName: string = "???", maxHealth: number = 250) {
         this.displayName = displayName;
         this.maxHealth = Math.max(1, maxHealth);
         this.currentHealth = this.maxHealth;

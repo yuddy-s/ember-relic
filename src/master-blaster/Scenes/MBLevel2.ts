@@ -3,6 +3,7 @@ import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
+import { MBEvents } from "../MBEvents";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import Level2Boss, { VorrathAnimations } from "../Bosses/Level2Boss";
 import VorrathController from "../Bosses/VorrathController";
@@ -24,9 +25,10 @@ export default class Level2 extends MBLevel {
     private blindVignette!: Sprite;
     private level2Boss!: Level2Boss;
     private level2BossSprite!: MBAnimatedSprite;
-    private bossDebugTimer: number;
-    // new Vec2(1536, 752)
-    public static readonly PLAYER_SPAWN = new Vec2(2550, 1050);
+    private bossDefeatVignetteTimer: number = 0;
+    private bossDefeatVignetteDelayStarted: boolean = false;
+    // new Vec2(1536, 752) 2600, 1050
+    public static readonly PLAYER_SPAWN = new Vec2(2600, 1050);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
@@ -34,7 +36,8 @@ export default class Level2 extends MBLevel {
     public static readonly VORRATH_SPAWN = new Vec2(2448, 1050);
     public static readonly VORRATH_SCALE = new Vec2(0.4, 0.4);
     public static readonly VORRATH_HITBOX_HALF_SIZE = new Vec2(72, 104);
-    public static readonly VORRATH_AGGRO_RANGE = 160;
+    public static readonly VORRATH_VISUAL_OFFSET_Y = 8;
+    public static readonly VORRATH_AGGRO_RANGE = 80;
     public static readonly VORRATH_ATTACK_RANGE = 140;
     public static readonly VORRATH_MOVE_SPEED = 75;
     public static readonly CAVE_VIGNETTE_KEY = "CAVE_VIGNETTE";
@@ -42,9 +45,10 @@ export default class Level2 extends MBLevel {
     public static readonly BLIND_VIGNETTE_KEY = "BLIND_VIGNETTE";
     public static readonly BLIND_VIGNETTE_PATH = "game_assets/art/blind.png";
     public static readonly LEVEL2_ZOOM = 3.3;
-    public static readonly VIGNETTE_FADE_SPEED = 6;
+    public static readonly VIGNETTE_FADE_SPEED = 0.5;
+    public static readonly POST_BOSS_VIGNETTE_DELAY = 6;
     public static readonly BOSS_NAME = "Vorrath, The Ashen";
-    public static readonly BOSS_MAX_HEALTH = 250;
+    public static readonly BOSS_MAX_HEALTH = 13;
 
     public static readonly TILEMAP_KEY = "LEVEL2";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/cave.json";
@@ -89,7 +93,6 @@ export default class Level2 extends MBLevel {
         // Level end size and position
         this.levelEndPosition = new Vec2(32, 216).mult(this.tilemapScale);
         this.levelEndHalfSize = new Vec2(32, 32).mult(this.tilemapScale);
-        this.bossDebugTimer = 0;
 
     }
     /**
@@ -120,12 +123,14 @@ export default class Level2 extends MBLevel {
     public startScene(): void {
         super.startScene();
         this.nextLevel = MainMenu;
+        this.bossDefeatVignetteTimer = 0;
+        this.bossDefeatVignetteDelayStarted = false;
     }
 
     public updateScene(deltaT: number): void {
         super.updateScene(deltaT);
+        this.updateBossDefeatVignetteTimer(deltaT);
         this.updateVisibilityVignettes(deltaT);
-        this.debugBossCollision(deltaT);
     }
 
     public getDyingAudioKey() {
@@ -143,8 +148,15 @@ export default class Level2 extends MBLevel {
             Level2.VORRATH_HITBOX_HALF_SIZE.y * Level2.VORRATH_SCALE.y
         );
         this.placeBossOnFloor(scaledBossHitbox);
-        this.level2BossSprite.addPhysics(new AABB(this.level2BossSprite.position.clone(), scaledBossHitbox), undefined, true, false);
+        this.level2BossSprite.addPhysics(
+            new AABB(this.level2BossSprite.position.clone(), scaledBossHitbox),
+            new Vec2(0, -Level2.VORRATH_VISUAL_OFFSET_Y),
+            true,
+            false
+        );
+        this.level2BossSprite.position.y += Level2.VORRATH_VISUAL_OFFSET_Y;
         this.level2BossSprite.setGroup(MBPhysicsGroups.BOSS);
+        this.level2BossSprite.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.BOSS_PARTICLE_HIT, "");
         this.level2BossSprite.animation.play(VorrathAnimations.IDLE, true);
         this.level2BossSprite.addAI(VorrathController, {
             bossState: this.level2Boss,
@@ -189,8 +201,15 @@ export default class Level2 extends MBLevel {
 
         const hasLantern = MBProgress.hasUpgrade(UpgradeId.LANTERN);
         const bossFightStarted = this.boss !== undefined && this.boss.hasFightStarted() && !this.boss.isDefeated();
+        const bossDefeatDelayFinished = this.boss !== undefined && this.boss.isDefeated() && this.bossDefeatVignetteTimer >= Level2.POST_BOSS_VIGNETTE_DELAY;
         const targetBlindAlpha = hasLantern ? 0 : 1;
-        const targetCaveAlpha = !hasLantern ? 0 : (bossFightStarted ? 0 : 1);
+        const targetCaveAlpha = !hasLantern
+            ? 0
+            : this.boss === undefined
+                ? 1
+                : this.boss.isDefeated()
+                    ? (bossDefeatDelayFinished ? 1 : 0)
+                    : (bossFightStarted ? 0 : 1);
         const fadeStep = Math.min(1, deltaT * Level2.VIGNETTE_FADE_SPEED);
 
         this.caveVignette.alpha += (targetCaveAlpha - this.caveVignette.alpha) * fadeStep;
@@ -206,6 +225,28 @@ export default class Level2 extends MBLevel {
 
     public getLevel2BossSprite(): MBAnimatedSprite {
         return this.level2BossSprite;
+    }
+
+    protected getBossDamageTarget(): MBAnimatedSprite | null {
+        return this.level2BossSprite ?? null;
+    }
+
+    protected updateBossDefeatVignetteTimer(deltaT: number): void {
+        if(this.boss === undefined){
+            this.bossDefeatVignetteTimer = 0;
+            this.bossDefeatVignetteDelayStarted = false;
+            return;
+        }
+
+        if(this.boss.isDefeated()){
+            this.bossDefeatVignetteDelayStarted = true;
+            this.bossDefeatVignetteTimer += deltaT;
+            return;
+        }
+
+        if(!this.bossDefeatVignetteDelayStarted){
+            this.bossDefeatVignetteTimer = 0;
+        }
     }
 
     protected placeBossOnFloor(hitboxHalfSize: Vec2): void {
@@ -227,34 +268,6 @@ export default class Level2 extends MBLevel {
             this.level2BossSprite.position.y = tileTopY - hitboxHalfSize.y - 1;
             return;
         }
-    }
-
-    protected debugBossCollision(deltaT: number): void {
-        if(this.level2BossSprite === undefined || this.walls === undefined){
-            return;
-        }
-
-        this.bossDebugTimer += deltaT;
-        if(this.bossDebugTimer < 0.5){
-            return;
-        }
-        this.bossDebugTimer = 0;
-
-        const halfSize = this.level2BossSprite.collisionShape.halfSize;
-        const feetPosition = new Vec2(this.level2BossSprite.position.x, this.level2BossSprite.position.y + halfSize.y + 2);
-        const feetTile = this.walls.getColRowAt(feetPosition);
-        const feetTileValue = this.walls.getTileAtRowCol(feetTile);
-        const feetTileCollidable = this.walls.isTileCollidable(feetTile.x, feetTile.y);
-
-        console.log(
-            "[Vorrath Debug]",
-            "pos=", this.level2BossSprite.position.x.toFixed(1), this.level2BossSprite.position.y.toFixed(1),
-            "vel=", this.level2BossSprite._velocity.x.toFixed(2), this.level2BossSprite._velocity.y.toFixed(2),
-            "onGround=", this.level2BossSprite.onGround,
-            "feetTile=", `(${feetTile.x},${feetTile.y})`,
-            "tile=", feetTileValue,
-            "collidable=", feetTileCollidable
-        );
     }
 
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {

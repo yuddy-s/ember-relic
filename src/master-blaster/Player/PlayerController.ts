@@ -67,10 +67,12 @@ export default class PlayerController extends StateMachineAI {
     public readonly MIN_SPEED: number = 130;
     public readonly DASH_SPEED: number = 500;
 
-    protected readonly DASH_DURATION: number = 0.14;
+    protected readonly DASH_DURATION: number = 0.2;
     protected readonly DASH_COOLDOWN: number = 0.5;
+    protected readonly ATTACK_COOLDOWN: number = 0.32;
     protected readonly COYOTE_TIME: number = 0.1;
     protected readonly JUMP_BUFFER_TIME: number = 0.1;
+    protected readonly POST_HIT_INVULNERABILITY: number = 0.55;
 
     /** Health and max health for the player */
     protected _health: number;
@@ -92,6 +94,8 @@ export default class PlayerController extends StateMachineAI {
     protected hasAirDashed: boolean;
     protected coyoteTimer: number;
     protected jumpBufferTimer: number;
+    protected invulnerabilityTimer: number;
+    protected attackCooldownTimer: number;
 
     
     public initializeAI(owner: MBAnimatedSprite, options: Record<string, any>){
@@ -109,6 +113,8 @@ export default class PlayerController extends StateMachineAI {
         this.hasAirDashed = false;
         this.coyoteTimer = 0;
         this.jumpBufferTimer = 0;
+        this.invulnerabilityTimer = 0;
+        this.attackCooldownTimer = 0;
 
         this.health = 5
         this.maxHealth = 5;
@@ -142,7 +148,10 @@ export default class PlayerController extends StateMachineAI {
     public get faceDir(): Vec2 { return this.owner.position.dirTo(Input.getGlobalMousePosition()); }
 
     public update(deltaT: number): void {
-		super.update(deltaT);
+        super.update(deltaT);
+
+        this.invulnerabilityTimer = Math.max(0, this.invulnerabilityTimer - deltaT);
+        this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - deltaT);
 
         if(Input.isJustPressed(MBControls.JUMP)){
             this.jumpBufferTimer = this.JUMP_BUFFER_TIME;
@@ -158,7 +167,7 @@ export default class PlayerController extends StateMachineAI {
         }
 
         // If the player hits the attack button and the weapon system isn't running, fire in the mouse direction.
-        if (!this.isDashing() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
+        if (!this.isDashing() && this.canAttack() && Input.isMouseJustPressed(0) && !this.weapon.isSystemRunning()) {
             this.weapon.setSlashDirection(this.faceDir);
 
             // Start the particle system at the player's current position
@@ -166,6 +175,7 @@ export default class PlayerController extends StateMachineAI {
             this.weapon.startSystem(180, 0, slashOrigin);
             this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
             this.owner.animation.queue(PlayerAnimations.IDLE);
+            this.attackCooldownTimer = this.ATTACK_COOLDOWN;
         }
 
     this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - deltaT);
@@ -178,6 +188,10 @@ export default class PlayerController extends StateMachineAI {
 
     public canDash(): boolean {
         return !this.isDashing() && !this.hasAirDashed && this.dashCooldownTimer === 0;
+    }
+
+    public canAttack(): boolean {
+        return this.attackCooldownTimer === 0;
     }
 
     public shouldStartJump(): boolean {
@@ -204,6 +218,7 @@ export default class PlayerController extends StateMachineAI {
         this.dashTimer = this.DASH_DURATION;
         this.dashCooldownTimer = this.DASH_COOLDOWN;
         this.hasAirDashed = true;
+        this.grantInvulnerability(this.DASH_DURATION);
         this.velocity.x = this.dashDirection.x * this.DASH_SPEED;
         this.velocity.y = 0;
         return true;
@@ -225,6 +240,36 @@ export default class PlayerController extends StateMachineAI {
     public endDash(): void {
         this.dashTimer = 0;
         this.velocity.x *= 0.35;
+    }
+
+    public isInvulnerable(): boolean {
+        return this.invulnerabilityTimer > 0;
+    }
+
+    public grantInvulnerability(duration: number): void {
+        this.invulnerabilityTimer = Math.max(this.invulnerabilityTimer, Math.max(0, duration));
+    }
+
+    public canTakeDamage(): boolean {
+        return !this.isInvulnerable() && this.health > 0;
+    }
+
+    public applyDamage(amount: number, knockback?: Vec2): boolean {
+        if(amount <= 0 || !this.canTakeDamage()){
+            return false;
+        }
+
+        if(knockback !== undefined){
+            this.velocity = knockback.clone();
+        }
+
+        this.health = this.health - amount;
+        if(this.health > 0){
+            this.grantInvulnerability(this.POST_HIT_INVULNERABILITY);
+            this.changeState(PlayerStates.TAKINGDAMAGE);
+        }
+
+        return true;
     }
 
     public get velocity(): Vec2 { return this._velocity; }

@@ -43,7 +43,6 @@ export const MB_PROGRESS_SNAPSHOTS: Readonly<Record<ProgressSnapshotId, MBProgre
     [ProgressSnapshotId.EMBERSKIP2]: createSnapshot({
         upgrades: [
             UpgradeId.LANTERN,
-            UpgradeId.FUR_COAT,
             UpgradeId.SHIELD,
             UpgradeId.REVIVAL_TOTEM_L1,
             UpgradeId.ASHEN_SEAL_FRAGMENT

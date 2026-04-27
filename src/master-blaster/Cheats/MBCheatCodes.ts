@@ -40,6 +40,17 @@ export function parseCheatCode(input: string): MBCheatCode | null {
     const normalizedCode = normalizeCheatCode(input);
 
     switch(normalizedCode){
+        case "EMBERSKIP1":
+            return MBCheatCode.EMBERSKIP1;
+        case "EMBERSKIP2":
+            return MBCheatCode.EMBERSKIP2;
+        case "EMBERSKIP3":
+            return MBCheatCode.EMBERSKIP3;
+        case "EMBERSKIP4":
+            return MBCheatCode.EMBERSKIP4;
+    }
+
+    switch(normalizedCode){
         case MBCheatCode.GODMODE:
         case MBCheatCode.FLY:
         case MBCheatCode.TPBOSS:
@@ -144,6 +155,7 @@ function executeKillBossCheat(context: CheatExecutionContext): CheatExecutionRes
 
     context.boss.defeat();
     MBProgress.defeatBoss(context.boss.id);
+    context.setPauseMenuOpen(false);
     context.refreshCheatDrivenUI();
 
     return {

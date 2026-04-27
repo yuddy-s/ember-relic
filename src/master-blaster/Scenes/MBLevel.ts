@@ -462,7 +462,10 @@ export default abstract class MBLevel extends Scene {
             refreshCheatDrivenUI: () => this.refreshInventoryUI(),
             resolveProgressTargetScene: (targetSceneId: ProgressTargetSceneId) => this.resolveProgressTargetScene(targetSceneId),
             setPauseMenuOpen: (paused: boolean) => this.setPauseMenuOpen(paused),
-            warpToScene: (scene, init) => this.warpToScene(scene, init)
+            warpToScene: (scene, init) => this.warpToScene(scene, init),
+            teleportPlayerToBoss: () => this.teleportPlayerToBoss(),
+            toggleFlyMode: () => this.toggleFlyMode()
+
         });
 
         if(result.success){
@@ -477,6 +480,19 @@ export default abstract class MBLevel extends Scene {
     protected warpToScene(scene: new (...args: any) => Scene, init?: Record<string, any>): void {
         this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
         this.sceneManager.changeToScene(scene, init);
+    }
+
+    protected toggleFlyMode(): boolean {
+        if (this.player === undefined) {
+            return false;
+        }
+
+        const controller = this.player.ai as PlayerController;
+        return controller.toggleFlyMode()
+    }
+
+    protected teleportPlayerToBoss(): boolean {
+        return false;
     }
 
     /**

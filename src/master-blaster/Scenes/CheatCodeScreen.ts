@@ -57,13 +57,13 @@ export default class ControlsScreen extends Scene {
         const stepY = 55;
 
         const controls = [
-            ["EMBERSKIP1", "Skip to level 1"],
-            ["EMBERSKIP2", "Skip to level 2"],
-            ["EMBERSKIP3", "Skip to level 3"],
-            ["EMBERSKIP4", "Skip to level 4"],
+            ["SKIP1", "Skip to level 1"],
+            ["SKIP2", "Skip to level 2"],
+            ["SKIP3", "Skip to level 3"],
+            ["SKIP4", "Skip to level 4"],
             ["GODMODE", "Take no damage"],
-            ["KILLBOSS", "Kill current boss"],
-            ["HEARTHUNLOCK", "Unlocks secret door"]
+            ["FLY", "Fly"],
+            ["TPBOSS", "Teleport to boss"]
         ];
 
         controls.forEach((entry, i) => {

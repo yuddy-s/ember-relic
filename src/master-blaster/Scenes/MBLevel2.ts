@@ -10,6 +10,7 @@ import Level2Boss, { VorrathAnimations } from "../Bosses/Level2Boss";
 import VorrathController from "../Bosses/VorrathController";
 import MBLevel, { MBLayers } from "./MBLevel";
 import Level1 from "./MBLevel1";
+import Level3 from "./MBLevel3";
 import MainMenu from "./MainMenu";
 
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
@@ -393,6 +394,8 @@ export default class Level2 extends MBLevel {
                 return Level1;
             case ProgressTargetSceneId.LEVEL_2:
                 return Level2;
+            case ProgressTargetSceneId.LEVEL_3:
+                return Level3;
             default:
                 return null;
         }

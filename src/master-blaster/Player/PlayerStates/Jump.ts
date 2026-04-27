@@ -39,9 +39,11 @@ export default class Jump extends PlayerState {
             // Get the input direction from the player
             let dir = this.parent.inputDir;
             // Update the horizontal velocity of the player with smooth air control
-            const targetAirSpeed = dir.x * this.parent.speed * 0.9;
-            const airAcceleration = Math.min(1, 8 * deltaT);
-            this.parent.velocity.x += (targetAirSpeed - this.parent.velocity.x) * airAcceleration;
+            if(dir.x !== 0){
+                const targetAirSpeed = dir.x * this.parent.speed * 0.9;
+                const airAcceleration = Math.min(1, 8 * deltaT);
+                this.parent.velocity.x += (targetAirSpeed - this.parent.velocity.x) * airAcceleration;
+            }
             // Update the vertical velocity of the player
             this.parent.velocity.y += this.gravity*deltaT;
             // Move the player

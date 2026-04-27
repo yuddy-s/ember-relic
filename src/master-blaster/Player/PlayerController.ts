@@ -87,9 +87,10 @@ export default class PlayerController extends StateMachineAI {
     protected owner: MBAnimatedSprite;
 
     protected _velocity: Vec2;
-	protected _speed: number;
+    protected _speed: number;
 
     protected tilemap: OrthogonalTilemap;
+    protected slidingTilemap: OrthogonalTilemap | null;
     // protected cannon: Sprite;
     protected weapon: PlayerWeapon;
 
@@ -110,6 +111,7 @@ export default class PlayerController extends StateMachineAI {
         this.weapon = options.weaponSystem;
 
         this.tilemap = this.owner.getScene().getTilemap(options.tilemap) as OrthogonalTilemap;
+        this.slidingTilemap = this.owner.getScene().getTilemap("Sliding") as OrthogonalTilemap | null;
         this.speed = this.MIN_SPEED;
         this.velocity = Vec2.ZERO;
 
@@ -288,6 +290,21 @@ export default class PlayerController extends StateMachineAI {
 
     public shouldStartJump(): boolean {
         return !this.isDashing() && this.jumpBufferTimer > 0 && (this.owner.onGround || this.coyoteTimer > 0);
+    }
+
+    public isOnIce(): boolean {
+        if(this.slidingTilemap === null || this.slidingTilemap === undefined || !this.owner.onGround){
+            return false;
+        }
+
+        const checkY = this.owner.boundary.bottom + 2;
+        const leftCheck = new Vec2(this.owner.boundary.left + 2, checkY);
+        const rightCheck = new Vec2(this.owner.boundary.right - 2, checkY);
+        const leftTile = this.slidingTilemap.getColRowAt(leftCheck);
+        const rightTile = this.slidingTilemap.getColRowAt(rightCheck);
+
+        return this.slidingTilemap.isTileCollidable(leftTile.x, leftTile.y)
+            || this.slidingTilemap.isTileCollidable(rightTile.x, rightTile.y);
     }
 
     public consumeJumpBuffer(): void {

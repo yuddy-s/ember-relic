@@ -38,8 +38,12 @@ export default class Walk extends PlayerState {
             // Update the vertical velocity of the player
             this.parent.velocity.y += this.gravity*deltaT; 
             const targetSpeed = dir.x * this.parent.speed;
+            const isOnIce = this.parent.isOnIce();
             const isReversing = this.parent.velocity.x !== 0 && Math.sign(targetSpeed) !== Math.sign(this.parent.velocity.x);
-            const acceleration = Math.min(1, (isReversing ? 22 : 14) * deltaT);
+            const accelerationRate = isOnIce
+                ? (isReversing ? 4 : 2)
+                : (isReversing ? 22 : 14);
+            const acceleration = Math.min(1, accelerationRate * deltaT);
             this.parent.velocity.x += (targetSpeed - this.parent.velocity.x) * acceleration;
             this.owner.move(this.parent.velocity.scaled(deltaT));
         }

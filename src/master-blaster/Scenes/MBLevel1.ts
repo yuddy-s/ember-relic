@@ -7,6 +7,7 @@ import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
 import MBLevel2 from "./MBLevel2";
+import Level3 from "./MBLevel3";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 
 /**
@@ -155,6 +156,8 @@ export default class Level1 extends MBLevel {
                 return Level1;
             case ProgressTargetSceneId.LEVEL_2:
                 return MBLevel2;
+            case ProgressTargetSceneId.LEVEL_3:
+                return Level3;
             default:
                 return null;
         }

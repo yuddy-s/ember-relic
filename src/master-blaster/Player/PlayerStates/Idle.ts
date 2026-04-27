@@ -9,7 +9,9 @@ export default class Idle extends PlayerState {
         this.owner.animation.play(PlayerAnimations.IDLE, true);
 		this.parent.speed = this.parent.MIN_SPEED;
         if(!options?.preserveMomentum){
-            this.parent.velocity.x = 0;
+            if(!this.parent.isOnIce()){
+                this.parent.velocity.x = 0;
+            }
             this.parent.velocity.y = 0;
         }
 	}
@@ -39,7 +41,9 @@ export default class Idle extends PlayerState {
         } 
         // Otherwise, do nothing (keep idling)
         else {
-            this.parent.velocity.x += (0 - this.parent.velocity.x) * Math.min(1, 12 * deltaT);
+            if(!this.parent.isOnIce()){
+                this.parent.velocity.x += (0 - this.parent.velocity.x) * Math.min(1, 12 * deltaT);
+            }
             // Update the vertical velocity of the player
             this.parent.velocity.y += this.gravity*deltaT;
             // Move the player

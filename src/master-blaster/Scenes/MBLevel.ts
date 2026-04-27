@@ -113,6 +113,7 @@ export default abstract class MBLevel extends Scene {
     /** The keys to the tilemap and different tilemap layers */
     protected tilemapKey!: string;
     protected destructibleLayerKey?: string;
+    protected damagingLayerKey?: string;
     protected wallsLayerKey!: string;
     /** Optional scenic level background image key */
     protected backgroundImageKey?: string;
@@ -124,6 +125,8 @@ export default abstract class MBLevel extends Scene {
     protected tilemapScale!: Vec2;
     /** The destrubtable layer of the tilemap */
     protected destructable?: OrthogonalTilemap;
+    /** An optional tilemap layer that damages the player on contact */
+    protected damaging?: OrthogonalTilemap;
     /** The wall layer of the tilemap */
     protected walls!: OrthogonalTilemap;
 
@@ -132,6 +135,7 @@ export default abstract class MBLevel extends Scene {
     protected deathTriggered: boolean;
     protected bossDamageCooldownTimer: number;
     protected bossDamageCooldownDuration: number;
+    protected damagingTileDamage: number;
 
     /** Sound and music */
     protected levelMusicKey!: string;
@@ -253,6 +257,7 @@ export default abstract class MBLevel extends Scene {
         this.add = new MBFactoryManager(this, this.tilemaps);
         this.backgroundParallax = new Vec2(0.35, 1);
         this.backgroundLayerDepth = -10;
+        this.damagingLayerKey = "Damaging";
         this.deathTriggered = false;
         this.pauseMenuOpen = false;
         this.pauseControlsOpen = false;
@@ -271,6 +276,7 @@ export default abstract class MBLevel extends Scene {
         this.boss = undefined;
         this.bossDamageCooldownTimer = 0;
         this.bossDamageCooldownDuration = 0.2;
+        this.damagingTileDamage = 1;
     }
 
     public initScene(init: Record<string, any>): void {
@@ -358,6 +364,7 @@ export default abstract class MBLevel extends Scene {
         this.refreshBossUI();
 
         if(!this.pauseMenuOpen){
+            this.handleDamagingTileContact();
             this.handleOutOfBoundsDeath();
         }
     }
@@ -1080,6 +1087,18 @@ export default abstract class MBLevel extends Scene {
 
             this.destructable.addPhysics();
         }
+
+        this.damaging = undefined;
+        if(this.damagingLayerKey !== undefined){
+            if(this.damagingLayerKey === this.wallsLayerKey || this.damagingLayerKey === this.destructibleLayerKey){
+                throw new Error("Damaging layer key must be different from the wall and destructible layer keys");
+            }
+
+            const damagingTilemap = this.getTilemap(this.damagingLayerKey) as OrthogonalTilemap | null;
+            if(damagingTilemap !== null){
+                this.damaging = damagingTilemap;
+            }
+        }
     }
 
     /**
@@ -1094,6 +1113,72 @@ export default abstract class MBLevel extends Scene {
             this.deathTriggered = true;
             this.emitter.fireEvent(MBEvents.PLAYER_DEAD);
         }
+    }
+
+    /**
+     * Damages the player while their collider overlaps any tile in the damaging layer.
+     */
+    protected handleDamagingTileContact(): void {
+        if(this.damaging === undefined || this.player === undefined){
+            return;
+        }
+
+        const controller = this.player.ai as PlayerController | undefined;
+        if(controller === undefined || !controller.canTakeDamage()){
+            return;
+        }
+
+        const playerBounds = this.player.collisionShape.getBoundingRect();
+        const horizontalInset = Math.min(4, Math.max(1, playerBounds.hw * 0.2));
+        const verticalInset = Math.min(4, Math.max(1, playerBounds.hh * 0.2));
+        const probeDistance = 2;
+        const damagingProbes = [
+            new Vec2(playerBounds.left + horizontalInset, playerBounds.top - probeDistance),
+            new Vec2(playerBounds.center.x, playerBounds.top - probeDistance),
+            new Vec2(playerBounds.right - horizontalInset, playerBounds.top - probeDistance),
+            new Vec2(playerBounds.left + horizontalInset, playerBounds.bottom + probeDistance),
+            new Vec2(playerBounds.center.x, playerBounds.bottom + probeDistance),
+            new Vec2(playerBounds.right - horizontalInset, playerBounds.bottom + probeDistance),
+            new Vec2(playerBounds.left - probeDistance, playerBounds.top + verticalInset),
+            new Vec2(playerBounds.left - probeDistance, playerBounds.center.y),
+            new Vec2(playerBounds.left - probeDistance, playerBounds.bottom - verticalInset),
+            new Vec2(playerBounds.right + probeDistance, playerBounds.top + verticalInset),
+            new Vec2(playerBounds.right + probeDistance, playerBounds.center.y),
+            new Vec2(playerBounds.right + probeDistance, playerBounds.bottom - verticalInset)
+        ];
+
+        for(const probe of damagingProbes){
+            if(this.isDamagingTileAt(probe)){
+                controller.applyDamage(this.damagingTileDamage);
+                return;
+            }
+        }
+
+        const min = playerBounds.topLeft;
+        const max = playerBounds.bottomRight;
+        min.add(new Vec2(0.001, 0.001));
+        max.add(new Vec2(-0.001, -0.001));
+
+        const minIndex = this.damaging.getColRowAt(min);
+        const maxIndex = this.damaging.getColRowAt(max);
+
+        for(let col = minIndex.x; col <= maxIndex.x; col++){
+            for(let row = minIndex.y; row <= maxIndex.y; row++){
+                if(this.damaging.isTileCollidable(col, row)){
+                    controller.applyDamage(this.damagingTileDamage);
+                    return;
+                }
+            }
+        }
+    }
+
+    protected isDamagingTileAt(worldPosition: Vec2): boolean {
+        if(this.damaging === undefined){
+            return false;
+        }
+
+        const tileIndex = this.damaging.getColRowAt(worldPosition);
+        return this.damaging.isTileCollidable(tileIndex.x, tileIndex.y);
     }
 
     /**

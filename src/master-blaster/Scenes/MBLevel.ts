@@ -73,6 +73,9 @@ export default abstract class MBLevel extends Scene {
     private healthLabel!: Label;
 	private healthBar!: Label;
 	private healthBarBg!: Label;
+    private bossNameLabel!: Label;
+    private bossHealthBar!: Label;
+    private bossHealthBarBg!: Label;
     private hudInventorySlots: Array<Label>;
     private hudInventoryIcons: Array<Sprite>;
     private pauseInventorySlots: Array<Button>;
@@ -161,6 +164,18 @@ export default abstract class MBLevel extends Scene {
         slotRadius: 6
     };
 
+    protected static readonly BOSS_HUD_TUNING = {
+        nameCenterX: 600,
+        nameCenterY: 730,
+        nameWidth: 360,
+        nameHeight: 24,
+        barCenterX: 600,
+        barCenterY: 764,
+        barWidth: 360,
+        barHeight: 16,
+        barRadius: 4
+    };
+
     // PAUSE TUNING
     // Change these values to adjust the pause menu layout without digging through UI creation code.
     protected static readonly PAUSE_TUNING = {
@@ -179,7 +194,7 @@ export default abstract class MBLevel extends Scene {
         inventorySlotStartY: 172,
         inventorySlotStepY: 50,
         inventorySlotSize: 70,
-        inventoryIconSize: 58,
+        inventoryIconSize: 15,
         popupCenterX: 600,
         popupCenterY: 350,
         popupWidth: 400,
@@ -194,13 +209,14 @@ export default abstract class MBLevel extends Scene {
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, {...options, physics: {
             // TODO configure the collision groups and collision map
-                groupNames: [MBPhysicsGroups.GROUND, MBPhysicsGroups.PLAYER, MBPhysicsGroups.PLAYER_WEAPON, MBPhysicsGroups.DESTRUCTABLE],
+                groupNames: [MBPhysicsGroups.GROUND, MBPhysicsGroups.PLAYER, MBPhysicsGroups.PLAYER_WEAPON, MBPhysicsGroups.DESTRUCTABLE, MBPhysicsGroups.BOSS],
                 collisions: [
-                    //        G  P  W  D
-                    /* G */  [0, 1, 1, 0],
-                    /* P */  [1, 0, 0, 1],
-                    /* W */  [1, 0, 0, 1],
-                    /* D */  [0, 1, 1, 0]
+                    //        G  P  W  D  B
+                    /* G */  [0, 1, 1, 0, 1],
+                    /* P */  [1, 0, 0, 1, 1],
+                    /* W */  [1, 0, 0, 1, 1],
+                    /* D */  [0, 1, 1, 0, 0],
+                    /* B */  [1, 1, 1, 0, 0]
                 ]
          }});
         this.add = new MBFactoryManager(this, this.tilemaps);
@@ -241,6 +257,9 @@ export default abstract class MBLevel extends Scene {
 
         // Initialize the player 
         this.initializePlayer(this.playerSpriteKey);
+
+        // Initialize the level boss, if this scene has one
+        this.initializeBoss();
 
         // Initialize the viewport - this must come after the player has been initialized
         this.initializeViewport();
@@ -296,6 +315,8 @@ export default abstract class MBLevel extends Scene {
         while (this.receiver.hasNextEvent()) {
             this.handleEvent(this.receiver.getNextEvent());
         }
+
+        this.refreshBossUI();
 
         if(!this.pauseMenuOpen){
             this.handleOutOfBoundsDeath();
@@ -635,6 +656,37 @@ export default abstract class MBLevel extends Scene {
         }
     }
 
+    protected refreshBossUI(): void {
+        if(this.bossNameLabel === undefined || this.bossHealthBar === undefined || this.bossHealthBarBg === undefined){
+            return;
+        }
+
+        const bossVisible = this.boss !== undefined && this.boss.hasFightStarted() && !this.boss.isDefeated();
+
+        this.bossNameLabel.visible = bossVisible;
+        this.bossHealthBar.visible = bossVisible;
+        this.bossHealthBarBg.visible = bossVisible;
+
+        if(!bossVisible){
+            return;
+        }
+
+        const boss = this.boss;
+        const maxHealth = Math.max(1, boss.getMaxHealth());
+        const currentHealth = Math.max(0, Math.min(boss.getCurrentHealth(), maxHealth));
+        const frameInset = 2;
+        const fillHeight = Math.max(this.bossHealthBarBg.size.y - frameInset, 2);
+        const maxFillWidth = Math.max(this.bossHealthBarBg.size.x - frameInset, 1);
+        const fillWidth = (maxFillWidth * currentHealth) / maxHealth;
+        const zoom = this.getViewScale();
+        const fillLeft = this.bossHealthBarBg.position.x - maxFillWidth / (2 * zoom);
+
+        this.bossNameLabel.text = boss.getDisplayName();
+        this.bossHealthBar.size.set(fillWidth, fillHeight);
+        this.bossHealthBar.position.set(fillLeft + fillWidth / (2 * zoom), this.bossHealthBarBg.position.y);
+        this.bossHealthBar.backgroundColor = new Color(213, 69, 61, 1);
+    }
+
     protected refreshHudInventorySlots(): void {
         const hudUpgrades = this.getEssentialHudUpgrades();
 
@@ -723,7 +775,8 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected refreshPauseInventoryPopup(): void {
-        const popupVisible = this.currentSelectedUpgradeId !== null && MBProgress.hasUpgrade(this.currentSelectedUpgradeId);
+        const selectedUpgradeId = this.currentSelectedUpgradeId;
+        const popupVisible = selectedUpgradeId !== null && MBProgress.hasUpgrade(selectedUpgradeId);
 
         this.pauseInventoryPopupPanel.visible = popupVisible;
         this.pauseInventoryPopupTitle.visible = popupVisible;
@@ -735,7 +788,7 @@ export default abstract class MBLevel extends Scene {
             return;
         }
 
-        const metadata = UPGRADE_METADATA[this.currentSelectedUpgradeId];
+        const metadata = UPGRADE_METADATA[selectedUpgradeId];
         this.pauseInventoryPopupTitle.text = metadata.name;
 
         const wrappedLines = this.wrapPausePopupDescription(metadata.description, 34, this.pauseInventoryPopupLines.length);
@@ -885,6 +938,7 @@ export default abstract class MBLevel extends Scene {
      */
     protected initializeUI(): void {
         const hud = MBLevel.HUD_TUNING;
+        const bossHud = MBLevel.BOSS_HUD_TUNING;
         const zoom = this.getViewScale();
         const toUIScreenX = (screenX: number): number => screenX / zoom;
         const toUIScreenY = (screenY: number): number => screenY / zoom;
@@ -940,6 +994,14 @@ export default abstract class MBLevel extends Scene {
         }
 
         this.refreshHudInventorySlots();
+
+        this.initializeBossUI(
+            new Vec2(toUIScreenX(bossHud.nameCenterX), toUIScreenY(bossHud.nameCenterY)),
+            new Vec2(toUIScreenX(bossHud.barCenterX), toUIScreenY(bossHud.barCenterY)),
+            new Vec2(bossHud.nameWidth, bossHud.nameHeight),
+            new Vec2(bossHud.barWidth, bossHud.barHeight),
+            bossHud.barRadius
+        );
 
         // End of level label (start off screen)
         this.levelEndLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, { position: new Vec2(-300, 100), text: "Level Complete" });
@@ -999,6 +1061,40 @@ export default abstract class MBLevel extends Scene {
             ],
             onEnd: MBEvents.LEVEL_START
         });
+    }
+
+    protected initializeBossUI(namePosition: Vec2, barPosition: Vec2, nameSize: Vec2, barSize: Vec2, barRadius: number): void {
+        this.bossNameLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: namePosition,
+            text: ""
+        });
+        this.bossNameLabel.size.copy(nameSize);
+        this.bossNameLabel.font = "PixelSimple";
+        this.bossNameLabel.fontSize = 18;
+        this.bossNameLabel.textColor = new Color(246, 238, 214, 1);
+        this.bossNameLabel.backgroundColor = Color.TRANSPARENT;
+        this.bossNameLabel.visible = false;
+
+        this.bossHealthBar = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: barPosition,
+            text: ""
+        });
+        this.bossHealthBar.size = new Vec2(barSize.x - 2, Math.max(barSize.y - 2, 2));
+        this.bossHealthBar.backgroundColor = new Color(213, 69, 61, 1);
+        this.bossHealthBar.borderRadius = barRadius;
+        this.bossHealthBar.visible = false;
+
+        this.bossHealthBarBg = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: barPosition,
+            text: ""
+        });
+        this.bossHealthBarBg.size.copy(barSize);
+        this.bossHealthBarBg.backgroundColor = new Color(38, 20, 18, 0.95);
+        this.bossHealthBarBg.borderColor = new Color(183, 146, 82, 1);
+        this.bossHealthBarBg.borderRadius = barRadius;
+        this.bossHealthBarBg.visible = false;
+
+        this.refreshBossUI();
     }
     protected initializePauseMenuUI(): void {
         const pause = MBLevel.PAUSE_TUNING;
@@ -1241,6 +1337,13 @@ export default abstract class MBLevel extends Scene {
         this.playerWeaponSystem = new PlayerWeapon(50, Vec2.ZERO, 1000, 3, 0, 50);
         this.playerWeaponSystem.initializePool(this, MBLayers.PRIMARY);
     }
+
+    /**
+     * Initializes an optional boss for the level.
+     * Override in levels that have a boss encounter.
+     */
+    protected initializeBoss(): void {}
+
     /**
      * Initializes the player, setting the player's initial position to the given position.
      * @param position the player's spawn position

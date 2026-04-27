@@ -7,6 +7,10 @@ export enum BossId {
 
 export interface BossHandle {
     readonly id: BossId;
+    getDisplayName(): string;
+    hasFightStarted(): boolean;
+    getCurrentHealth(): number;
+    getMaxHealth(): number;
     isDefeated(): boolean;
     defeat(): void;
 }

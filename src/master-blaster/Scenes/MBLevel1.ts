@@ -129,6 +129,7 @@ export default class Level1 extends MBLevel {
         const worldWidth = Level1.TILEMAP_WIDTH_TILES * Level1.TILE_SIZE * this.tilemapScale.x;
         const worldHeight = Level1.TILEMAP_HEIGHT_TILES * Level1.TILE_SIZE * this.tilemapScale.y;
         this.viewport.setBounds(0, 0, worldWidth, worldHeight);
+        console.log("Viewport bounds: ", this.viewport.getHalfSize().x, this.viewport.getHalfSize().y);
     }
 
     protected initializeTilemap(): void {

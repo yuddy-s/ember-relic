@@ -22,6 +22,7 @@ import { MBEvents } from "../MBEvents";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import { addEnemyPhysics, createScaledEnemyPhysicsConfig, placeGroundEnemyOnFloor } from "../Enemies/EnemyPhysicsUtils";
 import WretchController from "../Enemies/Minions/wretch/WretchController";
+import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import {
     DEFAULT_WRETCH_PHYSICS,
     WRETCH_SPRITE_KEY,
@@ -44,6 +45,8 @@ import {
  * The first level for Master Blaster - should be the one with the grass and the clouds.
  */
 export default class Level1 extends MBLevel {
+    private levelEndPortal: Sprite | null = null;
+
     // new Vec2(32, 280)
     public static readonly PLAYER_SPAWN = new Vec2(32, 260);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
@@ -64,6 +67,12 @@ export default class Level1 extends MBLevel {
     public static readonly BACKGROUND_IMAGE_KEY = "HEARTHHOLD_BACKGROUND";
     public static readonly BACKGROUND_IMAGE_PATH = "game_assets/tilemaps/tutorialBg.png";
     public static readonly BACKGROUND_PARALLAX = new Vec2(1, 1);
+
+    public static readonly PORTAL_IMAGE_KEY = "LEVEL1_PORTAL";
+    public static readonly PORTAL_IMAGE_PATH = "game_assets/tilemaps/portal.png";
+    public static readonly PORTAL_FRAME_SIZE = new Vec2(32, 61);
+    public static readonly GREEN_LEFT_PORTAL_FRAME = 6;
+    public static readonly PORTAL_FRAME_COLUMNS = 2;
 
     public static readonly TILEMAP_WIDTH_TILES = 120;
     public static readonly TILEMAP_HEIGHT_TILES = 30;
@@ -139,6 +148,7 @@ export default class Level1 extends MBLevel {
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
         // Load level background image
         this.load.image(Level1.BACKGROUND_IMAGE_KEY, Level1.BACKGROUND_IMAGE_PATH);
+        this.load.image(Level1.PORTAL_IMAGE_KEY, Level1.PORTAL_IMAGE_PATH);
         // Audio and music
         this.load.audio(this.levelMusicKey, Level1.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level1.JUMP_AUDIO_PATH);
@@ -232,6 +242,56 @@ export default class Level1 extends MBLevel {
         this.solenPromptLabel.fontSize = 18;
         this.solenPromptLabel.textColor = new Color(246, 238, 214, 1);
         this.solenPromptLabel.visible = false;
+    }
+
+    protected initializeLevelEnds(): void {
+        const portal = this.add.sprite(Level1.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
+        const frameCol = Level1.GREEN_LEFT_PORTAL_FRAME % Level1.PORTAL_FRAME_COLUMNS;
+        const frameRow = Math.floor(Level1.GREEN_LEFT_PORTAL_FRAME / Level1.PORTAL_FRAME_COLUMNS);
+
+        portal.size.copy(Level1.PORTAL_FRAME_SIZE);
+        portal.scale.copy(this.tilemapScale);
+        portal.setImageOffset(new Vec2(
+            frameCol * Level1.PORTAL_FRAME_SIZE.x,
+            frameRow * Level1.PORTAL_FRAME_SIZE.y
+        ));
+        portal.position.copy(this.levelEndPosition);
+        portal.addPhysics(new AABB(this.levelEndPosition.clone(), this.levelEndHalfSize.clone()), undefined, false, true);
+        portal.setTrigger(MBPhysicsGroups.PLAYER, MBEvents.PLAYER_ENTERED_LEVEL_END, "");
+
+        this.levelEndPortal = portal;
+    }
+
+    protected updateLevelEndPrompt(): void {
+        if(
+            this.levelEndPortal === null ||
+            this.player === undefined ||
+            !this.levelEndPortal.hasPhysics ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanInteractWithLevelEnd = false;
+            if(this.levelEndPromptPanel !== undefined){
+                this.levelEndPromptPanel.visible = false;
+            }
+            if(this.levelEndPromptLabel !== undefined){
+                this.levelEndPromptLabel.visible = false;
+            }
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const portalAABB = this.levelEndPortal.collisionShape.getBoundingRect();
+        const promptAABB = new AABB(
+            portalAABB.center.clone(),
+            new Vec2(portalAABB.halfSize.x + 16, portalAABB.halfSize.y + 20)
+        );
+
+        this.playerCanInteractWithLevelEnd = playerAABB.overlapArea(promptAABB) > 0;
+        this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
     }
 
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {

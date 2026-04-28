@@ -1,26 +1,62 @@
+import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
 import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
+import Input from "../../Wolfie2D/Input/Input";
+import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
+import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
+import Label from "../../Wolfie2D/Nodes/UIElements/Label";
+import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
+import Color from "../../Wolfie2D/Utils/Color";
+import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
+import { MBEvents } from "../MBEvents";
+import { MBPhysicsGroups } from "../MBPhysicsGroups";
+import { placeGroundEnemyOnFloor } from "../Enemies/EnemyPhysicsUtils";
+import { MBProgress } from "../Progress/MBProgress";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import MBLevel, { MBLayers } from "./MBLevel";
-import Level1 from "./MBLevel1";
-import Level2 from "./MBLevel2";
-import Level3 from "./MBLevel3";
 import MainMenu from "./MainMenu";
+import {
+    getSolenConversationForInteraction,
+    SolenAnimations,
+    SolenConversation,
+    SOLEN_HITBOX_HALF_SIZE,
+    SOLEN_INTERACTION_HALF_SIZE,
+    SOLEN_INTERACTION_RANGE_PADDING,
+    SOLEN_SPRITE_KEY,
+    SOLEN_SPRITE_PATH,
+    SOLEN_TEST_SCALE
+} from "../NPCs/solen";
+
+declare const require: (path: string) => { default: new (...args: any) => Scene };
 
 type PortalPlacement = {
     col: number;
     row: number;
     frame: number;
+    targetSceneId: ProgressTargetSceneId;
+    promptText?: string;
+};
+
+type HubPortalBinding = {
+    sprite: Sprite;
+    targetSceneId: ProgressTargetSceneId;
+    promptText: string;
+    interactionHalfSize: Vec2;
 };
 
 export default class HubLevel extends MBLevel {
     private portalSprites: Array<Sprite> = [];
+    private hubPortalBindings: Array<HubPortalBinding> = [];
     private campfireSprite: Sprite | null = null;
+    private solen!: MBAnimatedSprite;
+    private solenPromptPanel!: Rect;
+    private solenPromptLabel!: Label;
+    private playerCanInteractWithSolen: boolean = false;
 
     public static readonly PLAYER_SPAWN = new Vec2(432, 1024);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
@@ -43,11 +79,11 @@ export default class HubLevel extends MBLevel {
     public static readonly CAMPFIRE_IMAGE_PATH = "game_assets/spritesheets/campfire.png";
     public static readonly CAMPFIRE_FRAME_SIZE = new Vec2(36, 48);
     public static readonly CAMPFIRE_POSITION = new Vec2(808, 1060);
+    public static readonly SOLEN_POSITION = new Vec2(840, 1048);
 
     private static readonly DEFAULT_PORTAL_PLACEMENTS: Array<PortalPlacement> = [
-        { col: 15, row: 20, frame: 1 },
-        { col: 169, row: 56, frame: 4 },
-        { col: 98, row: 91, frame: 2 }
+        { col: 98, row: 91, frame: 2, targetSceneId: ProgressTargetSceneId.LEVEL_2 },
+        { col: 169, row: 56, frame: 4, targetSceneId: ProgressTargetSceneId.LEVEL_3 }, 
     ];
 
     public static readonly TILEMAP_WIDTH_TILES = 192;
@@ -92,6 +128,7 @@ export default class HubLevel extends MBLevel {
     public loadScene(): void {
         this.load.tilemap(this.tilemapKey, HubLevel.TILEMAP_PATH);
         this.load.spritesheet(this.playerSpriteKey, HubLevel.PLAYER_SPRITE_PATH);
+        this.load.spritesheet(SOLEN_SPRITE_KEY, SOLEN_SPRITE_PATH);
         this.load.image(MBLevel.LANTERN_ICON_KEY, MBLevel.LANTERN_ICON_PATH);
         this.load.image(MBLevel.FUR_COAT_ICON_KEY, MBLevel.FUR_COAT_ICON_PATH);
         this.load.image(MBLevel.DOUBLE_JUMP_ICON_KEY, MBLevel.DOUBLE_JUMP_ICON_PATH);
@@ -110,6 +147,7 @@ export default class HubLevel extends MBLevel {
 
     public unloadScene(): void {
         this.resourceManager.keepSpritesheet(this.playerSpriteKey);
+        this.resourceManager.keepSpritesheet(SOLEN_SPRITE_KEY);
         this.resourceManager.keepAudio(this.jumpAudioKey);
         this.resourceManager.keepAudio(this.dyingAudioKey);
         this.resourceManager.keepAudio(this.tileDestroyedAudioKey);
@@ -117,7 +155,35 @@ export default class HubLevel extends MBLevel {
 
     public startScene(): void {
         super.startScene();
-        this.travelPortalDestination = MainMenu;
+        this.initializeSolen();
+        const defaultPortalDestination = this.resolveProgressTargetScene(ProgressTargetSceneId.LEVEL_1);
+        if(defaultPortalDestination !== null){
+            this.travelPortalDestination = defaultPortalDestination;
+        }
+    }
+
+    public updateScene(deltaT: number): void {
+        super.updateScene(deltaT);
+        this.updateSolenFacing();
+        this.updateSolenPrompt();
+
+        if(
+            this.playerCanInteractWithSolen &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.startSolenConversation();
+        }
+    }
+
+    protected updateSolenFacing(): void {
+        if(this.solen === undefined || this.player === undefined){
+            return;
+        }
+
+        this.solen.invertX = this.player.position.x < this.solen.position.x;
     }
 
     public getDyingAudioKey(): string {
@@ -130,6 +196,8 @@ export default class HubLevel extends MBLevel {
         this.initializeCampfireSprite();
     }
 
+    protected initializeLevelEnds(): void {}
+
     protected initializeViewport(): void {
         super.initializeViewport();
         this.viewport.setZoomLevel(HubLevel.LEVEL_ZOOM);
@@ -139,6 +207,109 @@ export default class HubLevel extends MBLevel {
         this.viewport.setBounds(0, 0, worldWidth, worldHeight);
     }
 
+    protected initializeUI(): void {
+        super.initializeUI();
+
+        const promptPosition = new Vec2(600 / this.getViewScale(), 684 / this.getViewScale());
+        this.solenPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(220, 40)
+        });
+        this.solenPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.solenPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.solenPromptPanel.visible = false;
+
+        this.solenPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Speak with Solen"
+        });
+        this.solenPromptLabel.size.set(240, 24);
+        this.solenPromptLabel.font = "PixelSimple";
+        this.solenPromptLabel.fontSize = 18;
+        this.solenPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.solenPromptLabel.visible = false;
+    }
+
+    protected initializeSolen(): void {
+        this.solen = this.add.animatedSprite(SOLEN_SPRITE_KEY, MBLayers.PRIMARY);
+        this.solen.position.copy(HubLevel.SOLEN_POSITION);
+        this.solen.scale.copy(SOLEN_TEST_SCALE);
+        placeGroundEnemyOnFloor(this.solen, this.walls, this.tilemapScale, SOLEN_HITBOX_HALF_SIZE.clone());
+        this.solen.addPhysics(
+            new AABB(this.solen.position.clone(), SOLEN_HITBOX_HALF_SIZE.clone()),
+            undefined,
+            true,
+            true
+        );
+        this.solen.setGroup(MBPhysicsGroups.NPC);
+        this.solen.animation.play(SolenAnimations.IDLE, true);
+    }
+
+    protected updateSolenPrompt(): void {
+        if(
+            this.solen === undefined ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanInteractWithSolen = false;
+            this.solenPromptPanel.visible = false;
+            this.solenPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const interactionAABB = this.solen.hasPhysics
+            ? this.solen.collisionShape.getBoundingRect()
+            : new AABB(this.solen.position.clone(), SOLEN_INTERACTION_HALF_SIZE.clone());
+        const promptAABB = new AABB(
+            interactionAABB.center.clone(),
+            new Vec2(
+                interactionAABB.halfSize.x + SOLEN_INTERACTION_RANGE_PADDING.x,
+                interactionAABB.halfSize.y + SOLEN_INTERACTION_RANGE_PADDING.y
+            )
+        );
+
+        this.playerCanInteractWithSolen = playerAABB.overlapArea(promptAABB) > 0;
+        this.solenPromptLabel.text = getSolenConversationForInteraction().promptText;
+        this.solenPromptPanel.visible = this.playerCanInteractWithSolen;
+        this.solenPromptLabel.visible = this.playerCanInteractWithSolen;
+    }
+
+    protected startSolenConversation(): void {
+        const conversation = getSolenConversationForInteraction();
+        this.playerCanInteractWithSolen = false;
+        this.solenPromptPanel.visible = false;
+        this.solenPromptLabel.visible = false;
+        this.showDialogue(conversation.pages, () => this.completeSolenConversation(conversation));
+    }
+
+    protected completeSolenConversation(conversation: SolenConversation): void {
+        const finalizeConversation = (): void => {
+            if(conversation.id === "solen_intro_lantern"){
+                MBProgress.unlockHearth();
+            }
+
+            if(conversation.advanceStageOnComplete && conversation.stageIndex !== undefined){
+                MBProgress.setSolenConversationStage(
+                    Math.max(MBProgress.getSolenConversationStage(), conversation.stageIndex + 1)
+                );
+            }
+        };
+
+        if(conversation.rewardUpgradeId !== undefined && !MBProgress.hasUpgrade(conversation.rewardUpgradeId)){
+            this.showUpgradeRewardPopup(conversation.rewardUpgradeId, () => {
+                this.grantUpgrade(conversation.rewardUpgradeId);
+                finalizeConversation();
+            });
+            return;
+        }
+
+        finalizeConversation();
+    }
+
     protected initializePortalSprites(): void {
         const portalMarkers = this.getTilemap(HubLevel.PORTAL_MARKER_LAYER_KEY) as OrthogonalTilemap | null;
         const tileSize = portalMarkers?.getTileSize() ?? new Vec2(HubLevel.TILE_SIZE, HubLevel.TILE_SIZE);
@@ -146,6 +317,7 @@ export default class HubLevel extends MBLevel {
         const portalsToSpawn = placements.length > 0 ? placements : HubLevel.DEFAULT_PORTAL_PLACEMENTS;
 
         this.portalSprites = [];
+        this.hubPortalBindings = [];
 
         for(const placement of portalsToSpawn){
             const portal = this.add.sprite(HubLevel.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
@@ -164,6 +336,15 @@ export default class HubLevel extends MBLevel {
             );
 
             this.portalSprites.push(portal);
+            this.hubPortalBindings.push({
+                sprite: portal,
+                targetSceneId: placement.targetSceneId,
+                promptText: placement.promptText ?? "[E] Enter Portal",
+                interactionHalfSize: new Vec2(
+                    (HubLevel.PORTAL_FRAME_SIZE.x * portal.scale.x) / 2 + 16,
+                    (HubLevel.PORTAL_FRAME_SIZE.y * portal.scale.y) / 2 + 20
+                )
+            });
         }
     }
 
@@ -176,6 +357,7 @@ export default class HubLevel extends MBLevel {
         const placements: Array<PortalPlacement> = [];
         const firstPortalGid = portalTileset.getStartIndex();
         const dimensions = portalMarkers.getDimensions();
+        const defaultPlacements = HubLevel.DEFAULT_PORTAL_PLACEMENTS;
 
         for(let row = 0; row < dimensions.y; row++){
             for(let col = 0; col < dimensions.x; col++){
@@ -186,7 +368,14 @@ export default class HubLevel extends MBLevel {
                     continue;
                 }
 
-                placements.push({ col, row, frame });
+                const defaultPlacement = defaultPlacements[placements.length] ?? defaultPlacements[defaultPlacements.length - 1];
+                placements.push({
+                    col,
+                    row,
+                    frame,
+                    targetSceneId: defaultPlacement.targetSceneId,
+                    promptText: defaultPlacement.promptText
+                });
                 portalMarkers.setTileAtRowCol(new Vec2(col, row), 0);
             }
         }
@@ -204,14 +393,63 @@ export default class HubLevel extends MBLevel {
         this.campfireSprite = campfire;
     }
 
+    protected updateLevelEndPrompt(): void {
+        if(
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanInteractWithLevelEnd = false;
+            this.levelEndPromptPanel.visible = false;
+            this.levelEndPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        let activePortal: HubPortalBinding | null = null;
+        let bestOverlap = 0;
+
+        for(const portal of this.hubPortalBindings){
+            const promptAABB = new AABB(portal.sprite.position.clone(), portal.interactionHalfSize.clone());
+            const overlapArea = playerAABB.overlapArea(promptAABB);
+            if(overlapArea <= 0 || overlapArea <= bestOverlap){
+                continue;
+            }
+
+            bestOverlap = overlapArea;
+            activePortal = portal;
+        }
+
+        this.playerCanInteractWithLevelEnd = activePortal !== null;
+        this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
+
+        if(activePortal === null){
+            return;
+        }
+
+        const destination = this.resolveProgressTargetScene(activePortal.targetSceneId);
+        if(destination === null){
+            this.playerCanInteractWithLevelEnd = false;
+            this.levelEndPromptPanel.visible = false;
+            this.levelEndPromptLabel.visible = false;
+            return;
+        }
+
+        this.travelPortalDestination = destination;
+        this.levelEndPromptLabel.text = activePortal.promptText;
+    }
+
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
             case ProgressTargetSceneId.LEVEL_1:
-                return Level1;
+                return require("./MBLevel1").default;
             case ProgressTargetSceneId.LEVEL_2:
-                return Level2;
+                return require("./MBLevel2").default;
             case ProgressTargetSceneId.LEVEL_3:
-                return Level3;
+                return require("./MBLevel3").default;
             default:
                 return null;
         }

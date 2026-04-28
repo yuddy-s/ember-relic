@@ -22,6 +22,7 @@ import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import Level2Boss, { VorrathAnimations } from "../Bosses/Level2Boss";
 import VorrathController from "../Bosses/VorrathController";
 import MBLevel, { MBLayers } from "./MBLevel";
+import HubLevel from "./HubLevel";
 import Level1 from "./MBLevel1";
 import Level3 from "./MBLevel3";
 import MainMenu from "./MainMenu";
@@ -38,6 +39,7 @@ import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 export default class Level2 extends MBLevel {
     private caveVignette!: Sprite;
     private blindVignette!: Sprite;
+    private levelEndPortal: Sprite | null = null;
     private healthBuffCarrierSlime: MBAnimatedSprite | null = null;
     private healthBuffCarrierIcon: Sprite | null = null;
     private healthBuffPickupPromptPanel!: Rect;
@@ -131,6 +133,11 @@ export default class Level2 extends MBLevel {
     public static readonly TILEMAP_SCALE = new Vec2(1, 1);
     public static readonly DESTRUCTIBLE_LAYER_KEY = undefined;
     public static readonly WALLS_LAYER_KEY = "Main";
+    public static readonly PORTAL_IMAGE_KEY = "LEVEL2_PORTAL";
+    public static readonly PORTAL_IMAGE_PATH = "game_assets/spritesheets/portals.png";
+    public static readonly PORTAL_FRAME_COLUMNS = 2;
+    public static readonly PORTAL_FRAME_SIZE = new Vec2(32, 61);
+    public static readonly GREEN_RIGHT_PORTAL_FRAME = 7;
 
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
     public static readonly LEVEL_MUSIC_PATH = "game_assets/music/MB_level2_music.wav";
@@ -183,6 +190,7 @@ export default class Level2 extends MBLevel {
         this.load.spritesheet(WRETCH_SPRITE_KEY, WRETCH_SPRITE_PATH);
         this.load.spritesheet(BAT_SPRITE_KEY, BAT_SPRITE_PATH);
         this.load.spritesheet(SLIME_SPRITE_KEY, SLIME_SPRITE_PATH);
+        this.load.image(Level2.PORTAL_IMAGE_KEY, Level2.PORTAL_IMAGE_PATH);
         this.load.image(Level2.VORRATH_ROCK_KEY, Level2.VORRATH_ROCK_PATH);
         this.load.image(Level2.LAVA_PILLAR_KEY, Level2.LAVA_PILLAR_PATH);
         // Load the cave visibility vignette overlay
@@ -214,7 +222,7 @@ export default class Level2 extends MBLevel {
         this.initializeWretches();
         this.initializeBats();
         this.initializeHealthBuffSlime();
-        this.travelPortalDestination = MainMenu;
+        this.travelPortalDestination = HubLevel;
         this.bossDefeatVignetteTimer = 0;
         this.bossDefeatVignetteDelayStarted = false;
         this.furCoatRewardShown = false;
@@ -400,6 +408,28 @@ export default class Level2 extends MBLevel {
         const worldWidth = 224 * 16 * this.tilemapScale.x;
         const worldHeight = 80 * 16 * this.tilemapScale.y;
         this.viewport.setBounds(0, 0, worldWidth, worldHeight);
+    }
+
+    protected initializeLevelEnds(): void {
+        const portal = this.add.sprite(Level2.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
+        const frameCol = Level2.GREEN_RIGHT_PORTAL_FRAME % Level2.PORTAL_FRAME_COLUMNS;
+        const frameRow = Math.floor(Level2.GREEN_RIGHT_PORTAL_FRAME / Level2.PORTAL_FRAME_COLUMNS);
+
+        portal.size.copy(Level2.PORTAL_FRAME_SIZE);
+        portal.scale.copy(this.tilemapScale);
+        portal.setImageOffset(new Vec2(
+            frameCol * Level2.PORTAL_FRAME_SIZE.x,
+            frameRow * Level2.PORTAL_FRAME_SIZE.y
+        ));
+        portal.position.copy(this.levelEndPosition);
+        this.levelEndPortal = portal;
+
+        this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: this.levelEndPosition.clone(),
+            size: this.levelEndHalfSize.clone()
+        });
+        this.levelEndArea.addPhysics(undefined, undefined, false, true);
+        this.levelEndArea.visible = false;
     }
 
     protected initializeUI(): void {

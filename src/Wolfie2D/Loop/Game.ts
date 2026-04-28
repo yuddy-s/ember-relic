@@ -67,6 +67,9 @@ export default class Game {
 
         // Create an instance of a game loop
         this.loop = new FixedUpdateGameLoop();
+        if(this.gameOptions.maxFPS !== undefined && this.loop instanceof FixedUpdateGameLoop){
+            this.loop.setMaxFPS(this.gameOptions.maxFPS);
+        }
 
         // Get the game canvas and give it a background color
         this.GAME_CANVAS = <HTMLCanvasElement>document.getElementById("game-canvas");

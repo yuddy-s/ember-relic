@@ -11,30 +11,30 @@
       "name": "IDLE",
       "repeat": true,
       "frames": [
-        { "index": 5, "duration": 70 },
-        { "index": 6, "duration": 70 },
-        { "index": 7, "duration": 70 },
-        { "index": 8, "duration": 70 },
-        { "index": 9, "duration": 70 }
+        { "index": 5, "duration": 29 },
+        { "index": 6, "duration": 29 },
+        { "index": 7, "duration": 29 },
+        { "index": 8, "duration": 29 },
+        { "index": 9, "duration": 29 }
       ]
     },
     {
       "name": "WALK_RIGHT",
       "repeat": true,
       "frames": [
-        { "index": 15, "duration": 70 },
-        { "index": 16, "duration": 70 },
-        { "index": 17, "duration": 70 },
-        { "index": 18, "duration": 70 },
-        { "index": 19, "duration": 70 }
+        { "index": 15, "duration": 29 },
+        { "index": 16, "duration": 29 },
+        { "index": 17, "duration": 29 },
+        { "index": 18, "duration": 29 },
+        { "index": 19, "duration": 29 }
       ]
     },
     {
       "name": "ATTACK_RIGHT",
       "frames": [
-        { "index": 30, "duration": 90 },
-        { "index": 31, "duration": 90 },
-        { "index": 32, "duration": 100 }
+        { "index": 30, "duration": 38 },
+        { "index": 31, "duration": 38 },
+        { "index": 32, "duration": 42 }
       ]
     }
   ]

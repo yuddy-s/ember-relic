@@ -24,6 +24,9 @@ export default class FixedUpdateGameLoop extends GameLoop {
 
     /** The time when the last frame was drawn. */
     private lastFrameTime: number;
+
+    /** The time when the last render actually happened. */
+    private lastRenderTime: number;
     
     /** The minimum time we want to wait between game frames. */
     private minFrameDelay: number;
@@ -61,6 +64,7 @@ export default class FixedUpdateGameLoop extends GameLoop {
         this.updateTimestep = Math.floor(1000/this.maxUpdateFPS);
         this.frameDelta = 0;
         this.lastFrameTime = 0;
+        this.lastRenderTime = 0;
         this.minFrameDelay = 0;
         this.frame = 0;
         this.fps = this.maxUpdateFPS;   // Initialize the fps to the max allowed fps
@@ -74,7 +78,7 @@ export default class FixedUpdateGameLoop extends GameLoop {
 	}
 
 	getFPS(): number {
-		return 0;
+		return this.fps;
 	}
 
 	/**
@@ -147,8 +151,10 @@ export default class FixedUpdateGameLoop extends GameLoop {
         this._doRender();
 
         this.lastFrameTime = timestamp;
+        this.lastRenderTime = timestamp;
         this.lastFpsUpdate = timestamp;
-        this.framesSinceLastFpsUpdate = 0;
+        this.frame = 1;
+        this.framesSinceLastFpsUpdate = 1;
 
         window.requestAnimationFrame((t) => this.doFrame(t));
     }
@@ -163,15 +169,6 @@ export default class FixedUpdateGameLoop extends GameLoop {
 
 		// Set the new time of the last frame
         this.lastFrameTime = timestamp;
-
-        // Update the estimate of the framerate
-        if(timestamp > this.lastFpsUpdate + this.fpsUpdateInterval){
-            this.updateFPS(timestamp);
-        }
-
-		// Increment the number of frames
-        this.frame++;
-        this.framesSinceLastFpsUpdate++;
 	}
 
 	/**
@@ -186,11 +183,6 @@ export default class FixedUpdateGameLoop extends GameLoop {
 
         // Request animation frame to prepare for another update or render
         window.requestAnimationFrame((t) => this.doFrame(t));
-
-        // If we are trying to render too soon, do nothing.
-        if(timestamp < this.lastFrameTime + this.minFrameDelay){
-            return;
-		}
 		
 		// A frame is actually happening
 		this.startFrame(timestamp);
@@ -214,8 +206,24 @@ export default class FixedUpdateGameLoop extends GameLoop {
             }
         }
 
-        // Updates are done, render
-        this._doRender();
+        const shouldRender = this.minFrameDelay <= 0 || timestamp >= this.lastRenderTime + this.minFrameDelay;
+        if(shouldRender){
+            this._doRender();
+            this.frame++;
+            this.framesSinceLastFpsUpdate++;
+
+            if(timestamp > this.lastFpsUpdate + this.fpsUpdateInterval){
+                this.updateFPS(timestamp);
+            }
+
+            if(this.minFrameDelay > 0){
+                const renderDrift = timestamp - this.lastRenderTime;
+                this.lastRenderTime = timestamp - (renderDrift % this.minFrameDelay);
+            }
+            else {
+                this.lastRenderTime = timestamp;
+            }
+        }
 
         // Wrap up the frame
         this.finishFrame(panic);

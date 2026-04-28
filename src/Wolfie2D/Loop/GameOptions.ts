@@ -23,6 +23,9 @@ export default class GameOptions {
     /* Whether or not to use webGL */
     useWebGL: boolean;
 
+    /* Optional maximum render framerate */
+    maxFPS?: number;
+
     /**
      * Parses the data in the raw options object
      * @param options The game options as a Record
@@ -38,6 +41,7 @@ export default class GameOptions {
         gOpt.showDebug = !!options.showDebug;
         gOpt.showStats = !!options.showStats;
         gOpt.useWebGL = !!options.useWebGL;
+        gOpt.maxFPS = options.maxFPS;
 
         return gOpt;
     }

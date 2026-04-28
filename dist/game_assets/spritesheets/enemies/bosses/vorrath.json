@@ -10,81 +10,81 @@
     {
       "name": "IDLE",
       "frames": [
-        { "index": 0, "duration": 100 },
-        { "index": 1, "duration": 100 },
-        { "index": 2, "duration": 300 },
-        { "index": 3, "duration": 100 },
-        { "index": 4, "duration": 100 }
+        { "index": 0, "duration": 42 },
+        { "index": 1, "duration": 42 },
+        { "index": 2, "duration": 125 },
+        { "index": 3, "duration": 42 },
+        { "index": 4, "duration": 42 }
       ]
     },
     {
       "name": "TWO_HAND_GROUND_SLAM",
       "frames": [
-        { "index": 5, "duration": 30 },
-        { "index": 6, "duration": 75 },
-        { "index": 7, "duration": 150 },
-        { "index": 8, "duration": 30 },
-        { "index": 9, "duration": 170 },
-        { "index": 10, "duration": 80 },
-        { "index": 11, "duration": 40 }
+        { "index": 5, "duration": 13 },
+        { "index": 6, "duration": 31 },
+        { "index": 7, "duration": 63 },
+        { "index": 8, "duration": 13 },
+        { "index": 9, "duration": 71 },
+        { "index": 10, "duration": 33 },
+        { "index": 11, "duration": 17 }
       ]
     },
     {
       "name": "NORMAL_PUNCH",
       "frames": [
-        { "index": 11, "duration": 30 },
-        { "index": 13, "duration": 100 },
-        { "index": 14, "duration": 80 },
-        { "index": 15, "duration": 50 }
+        { "index": 11, "duration": 13 },
+        { "index": 13, "duration": 42 },
+        { "index": 14, "duration": 33 },
+        { "index": 15, "duration": 21 }
       ]
     },
     {
       "name": "ROCK_THROW",
       "frames": [
-        { "index": 16, "duration": 30 },
-        { "index": 17, "duration": 30 },
-        { "index": 18, "duration": 30 },
-        { "index": 19, "duration": 30 },
-        { "index": 20, "duration": 30 },
-        { "index": 21, "duration": 30 },
-        { "index": 22, "duration": 30 }
+        { "index": 16, "duration": 13 },
+        { "index": 17, "duration": 13 },
+        { "index": 18, "duration": 13 },
+        { "index": 19, "duration": 13 },
+        { "index": 20, "duration": 13 },
+        { "index": 21, "duration": 13 },
+        { "index": 22, "duration": 13 }
       ]
     },
     {
       "name": "ONE_HAND_GROUND_SLAM",
       "frames": [
-        { "index": 23, "duration": 100 },
-        { "index": 24, "duration": 175 },
-        { "index": 25, "duration": 150 },
-        { "index": 26, "duration": 150 },
-        { "index": 27, "duration": 100 }
+        { "index": 23, "duration": 42 },
+        { "index": 24, "duration": 73 },
+        { "index": 25, "duration": 63 },
+        { "index": 26, "duration": 63 },
+        { "index": 27, "duration": 42 }
       ]
     },
     {
       "name": "DYING",
       "frames": [
-        { "index": 28, "duration": 75 },
-        { "index": 29, "duration": 200 },
-        { "index": 30, "duration": 250 },
-        { "index": 32, "duration": 100 }
+        { "index": 28, "duration": 31 },
+        { "index": 29, "duration": 83 },
+        { "index": 30, "duration": 104 },
+        { "index": 32, "duration": 42 }
       ]
     },
     {
       "name": "DEAD",
       "repeat": true,
       "frames": [
-        { "index": 33, "duration": 30 }
+        { "index": 33, "duration": 13 }
       ]
     },
     {
       "name": "WALK",
       "frames": [
-        { "index": 34, "duration": 80 },
-        { "index": 35, "duration": 80 },
-        { "index": 36, "duration": 80 },
-        { "index": 37, "duration": 80 },
-        { "index": 38, "duration": 80 },
-        { "index": 39, "duration": 80 }
+        { "index": 34, "duration": 33 },
+        { "index": 35, "duration": 33 },
+        { "index": 36, "duration": 33 },
+        { "index": 37, "duration": 33 },
+        { "index": 38, "duration": 33 },
+        { "index": 39, "duration": 33 }
       ]
     }
   ]

@@ -11,31 +11,31 @@
       "name": "IDLE",
       "repeat": true,
       "frames": [
-        { "index": 0, "duration": 40 },
-        { "index": 1, "duration": 50 },
-        { "index": 2, "duration": 70 },
-        { "index": 3, "duration": 150 },
-        { "index": 2, "duration": 70 },
-        { "index": 1, "duration": 30 }
+        { "index": 0, "duration": 17 },
+        { "index": 1, "duration": 21 },
+        { "index": 2, "duration": 29 },
+        { "index": 3, "duration": 63 },
+        { "index": 2, "duration": 29 },
+        { "index": 1, "duration": 13 }
       ]
     },
     {
       "name": "ATTACK_RIGHT",
       "frames": [
-        { "index": 4, "duration": 50 },
-        { "index": 6, "duration": 70 },
-        { "index": 9, "duration": 70 }
+        { "index": 4, "duration": 21 },
+        { "index": 6, "duration": 29 },
+        { "index": 9, "duration": 29 }
       ]
     },
     {
       "name": "JUMP_RIGHT",
       "frames": [
-        { "index": 2, "duration": 50 },
-        { "index": 3, "duration": 50 },
-        { "index": 4, "duration": 50 },
-        { "index": 5, "duration": 50 },
-        { "index": 6, "duration": 50 },
-        { "index": 9, "duration": 50 }
+        { "index": 2, "duration": 21 },
+        { "index": 3, "duration": 21 },
+        { "index": 4, "duration": 21 },
+        { "index": 5, "duration": 21 },
+        { "index": 6, "duration": 21 },
+        { "index": 9, "duration": 21 }
       ]
     }
   ]

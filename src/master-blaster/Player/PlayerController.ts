@@ -80,11 +80,11 @@ export default class PlayerController extends StateMachineAI {
 
     protected readonly DASH_DURATION: number = 0.2;
     protected readonly DASH_COOLDOWN: number = 0.5;
-    protected readonly ATTACK_COOLDOWN: number = 0.4;
-    protected readonly COYOTE_TIME: number = 0.1;
-    protected readonly JUMP_BUFFER_TIME: number = 0.1;
+    protected readonly ATTACK_COOLDOWN: number = 0.3;
+    protected readonly COYOTE_TIME: number = 0.4;
+    protected readonly JUMP_BUFFER_TIME: number = 0.4;
     protected readonly WALL_LATCH_COOLDOWN: number = 0.15;
-    protected readonly POST_HIT_INVULNERABILITY: number = 0.55;
+    protected readonly POST_HIT_INVULNERABILITY: number = 0.8;
 
     /** Health and max health for the player */
     protected _health: number;

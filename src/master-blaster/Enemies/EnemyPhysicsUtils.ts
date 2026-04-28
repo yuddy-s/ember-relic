@@ -1,0 +1,53 @@
+import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
+import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
+import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
+import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
+import { EnemyPhysicsConfig, ResolvedEnemyPhysicsConfig } from "./EnemyPhysicsTypes";
+
+export function createScaledEnemyPhysicsConfig(config: EnemyPhysicsConfig): ResolvedEnemyPhysicsConfig {
+    const scale = config.spriteScale.clone();
+    const physicsScale = (config.physicsScale ?? config.spriteScale).clone();
+    const scaleVec = (value?: Vec2): Vec2 => {
+        if(value === undefined){
+            return Vec2.ZERO;
+        }
+
+        return new Vec2(value.x * physicsScale.x, value.y * physicsScale.y);
+    };
+
+    return {
+        spriteScale: scale,
+        bodyHitboxHalfSize: scaleVec(config.bodyHitboxHalfSize),
+        bodyColliderOffset: scaleVec(config.bodyColliderOffset),
+        attackHitboxOffset: scaleVec(config.attackHitboxOffset),
+        attackHitboxHalfSize: scaleVec(config.attackHitboxHalfSize),
+        movementMode: config.movementMode ?? "ground",
+        snapToFloor: config.snapToFloor !== false
+    };
+}
+
+export function placeGroundEnemyOnFloor(sprite: MBAnimatedSprite, walls: OrthogonalTilemap, tilemapScale: Vec2, hitboxHalfSize: Vec2): void {
+    const tileSize = walls.getTileSize();
+    const worldHeight = walls.getDimensions().y;
+    const col = walls.getColRowAt(sprite.position).x;
+    const startRow = Math.max(0, walls.getColRowAt(sprite.position).y - 6);
+
+    for(let row = startRow; row < worldHeight; row++){
+        if(!walls.isTileCollidable(col, row)){
+            continue;
+        }
+
+        const tileTopY = row * tileSize.y * tilemapScale.y;
+        sprite.position.y = tileTopY - hitboxHalfSize.y - 1;
+        return;
+    }
+}
+
+export function addEnemyPhysics(sprite: MBAnimatedSprite, physics: ResolvedEnemyPhysicsConfig, isCollidable: boolean = true, isStatic: boolean = false): void {
+    sprite.addPhysics(
+        new AABB(sprite.position.clone(), physics.bodyHitboxHalfSize.clone()),
+        physics.bodyColliderOffset.clone(),
+        isCollidable,
+        isStatic
+    );
+}

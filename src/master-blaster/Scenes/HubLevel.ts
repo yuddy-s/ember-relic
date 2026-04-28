@@ -117,7 +117,7 @@ export default class HubLevel extends MBLevel {
 
     public startScene(): void {
         super.startScene();
-        this.nextLevel = MainMenu;
+        this.travelPortalDestination = MainMenu;
     }
 
     public getDyingAudioKey(): string {

@@ -1,0 +1,19 @@
+{
+  "name": "solen",
+  "spriteSheetImage": "solen.png",
+  "spriteWidth": 128,
+  "spriteHeight": 128,
+  "columns": 4,
+  "rows": 4,
+  "durationType": "time",
+  "animations": [
+    {
+      "name": "IDLE",
+      "repeat": true,
+      "frames": [
+        { "index": 5, "duration": 300 },
+        { "index": 7, "duration": 300 }
+      ]
+    }
+  ]
+}

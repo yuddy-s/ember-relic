@@ -1,7 +1,13 @@
 import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
 import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
+import Input from "../../Wolfie2D/Input/Input";
+import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
+import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
+import Label from "../../Wolfie2D/Nodes/UIElements/Label";
+import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
-import MBLevel from "./MBLevel";
+import Color from "../../Wolfie2D/Utils/Color";
+import MBLevel, { MBLayers } from "./MBLevel";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
@@ -10,15 +16,44 @@ import MBLevel2 from "./MBLevel2";
 import Level3 from "./MBLevel3";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import HubLevel from "./HubLevel";
+import { MBProgress } from "../Progress/MBProgress";
+import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
+import { MBEvents } from "../MBEvents";
+import { MBPhysicsGroups } from "../MBPhysicsGroups";
+import { addEnemyPhysics, createScaledEnemyPhysicsConfig, placeGroundEnemyOnFloor } from "../Enemies/EnemyPhysicsUtils";
+import WretchController from "../Enemies/Minions/wretch/WretchController";
+import {
+    DEFAULT_WRETCH_PHYSICS,
+    WRETCH_SPRITE_KEY,
+    WRETCH_SPRITE_PATH
+} from "../Enemies/Minions/wretch/WretchConfig";
+import {
+    getSolenConversationForInteraction,
+    SolenAnimations,
+    SolenConversation,
+    SOLEN_HITBOX_HALF_SIZE,
+    SOLEN_INTERACTION_HALF_SIZE,
+    SOLEN_INTERACTION_RANGE_PADDING,
+    SOLEN_SPRITE_KEY,
+    SOLEN_SPRITE_PATH,
+    SOLEN_TEST_POSITION,
+    SOLEN_TEST_SCALE
+} from "../NPCs/solen";
 
 /**
  * The first level for Master Blaster - should be the one with the grass and the clouds.
  */
 export default class Level1 extends MBLevel {
-
-    public static readonly PLAYER_SPAWN = new Vec2(32, 280);
+    // new Vec2(32, 280)
+    public static readonly PLAYER_SPAWN = new Vec2(32, 260);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
+    
+    public static readonly WRETCH_SPAWNS = [
+        new Vec2(912, 240),
+        new Vec2(1296, 365),
+        new Vec2(1040, 128)
+    ];
 
     public static readonly TILEMAP_KEY = "HEARTHHOLD_LEVEL";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/tutorial.json";
@@ -48,6 +83,11 @@ export default class Level1 extends MBLevel {
 
     public static readonly LEVEL_END = new AABB(new Vec2(224, 232), new Vec2(24, 16));
 
+    private solen!: MBAnimatedSprite;
+    private solenPromptPanel!: Rect;
+    private solenPromptLabel!: Label;
+    private playerCanInteractWithSolen: boolean;
+
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, options);
 
@@ -74,6 +114,7 @@ export default class Level1 extends MBLevel {
         // Level end size and position
         this.levelEndPosition = new Vec2(1880, 170);
         this.levelEndHalfSize = new Vec2(32, 32).mult(this.tilemapScale);
+        this.playerCanInteractWithSolen = false;
     }
 
     /**
@@ -84,6 +125,8 @@ export default class Level1 extends MBLevel {
         this.load.tilemap(this.tilemapKey, Level1.TILEMAP_PATH);
         // Load in the player's sprite
         this.load.spritesheet(this.playerSpriteKey, Level1.PLAYER_SPRITE_PATH);
+        this.load.spritesheet(WRETCH_SPRITE_KEY, WRETCH_SPRITE_PATH);
+        this.load.spritesheet(SOLEN_SPRITE_KEY, SOLEN_SPRITE_PATH);
         // Temporary upgrade icon for inventory UI testing
         this.load.image(MBLevel.LANTERN_ICON_KEY, MBLevel.LANTERN_ICON_PATH);
         this.load.image(MBLevel.FUR_COAT_ICON_KEY, MBLevel.FUR_COAT_ICON_PATH);
@@ -109,6 +152,7 @@ export default class Level1 extends MBLevel {
     public unloadScene(): void {
         // TODO decide which resources to keep/cull 
         this.resourceManager.keepSpritesheet(this.playerSpriteKey);
+        this.resourceManager.keepSpritesheet(SOLEN_SPRITE_KEY);
 
         this.resourceManager.keepAudio(this.jumpAudioKey);
         this.resourceManager.keepAudio(this.dyingAudioKey);
@@ -118,8 +162,24 @@ export default class Level1 extends MBLevel {
 
     public startScene(): void {
         super.startScene();
-        // Set the next level to be Level2
-        this.nextLevel = HubLevel;
+        this.initializeWretches();
+        this.initializeSolen();
+        this.travelPortalDestination = HubLevel;
+    }
+
+    public updateScene(deltaT: number): void {
+        super.updateScene(deltaT);
+        this.updateSolenPrompt();
+
+        if(
+            this.playerCanInteractWithSolen &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.startSolenConversation();
+        }
     }
 
 
@@ -151,6 +211,29 @@ export default class Level1 extends MBLevel {
         }
     }
 
+    protected initializeUI(): void {
+        super.initializeUI();
+
+        const promptPosition = new Vec2(600 / this.getViewScale(), 684 / this.getViewScale());
+        this.solenPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(220, 40)
+        });
+        this.solenPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.solenPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.solenPromptPanel.visible = false;
+
+        this.solenPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Speak with Solen"
+        });
+        this.solenPromptLabel.size.set(240, 24);
+        this.solenPromptLabel.font = "PixelSimple";
+        this.solenPromptLabel.fontSize = 18;
+        this.solenPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.solenPromptLabel.visible = false;
+    }
+
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
             case ProgressTargetSceneId.LEVEL_1:
@@ -162,6 +245,116 @@ export default class Level1 extends MBLevel {
             default:
                 return null;
         }
+    }
+
+    protected initializeWretches(): void {
+        for(const spawn of Level1.WRETCH_SPAWNS){
+            this.spawnWretch(spawn);
+        }
+    }
+
+    protected initializeSolen(): void {
+        this.solen = this.add.animatedSprite(SOLEN_SPRITE_KEY, MBLayers.PRIMARY);
+        this.solen.position.copy(SOLEN_TEST_POSITION);
+        this.solen.scale.copy(SOLEN_TEST_SCALE);
+        placeGroundEnemyOnFloor(this.solen, this.walls, this.tilemapScale, SOLEN_HITBOX_HALF_SIZE.clone());
+        this.solen.addPhysics(
+            new AABB(this.solen.position.clone(), SOLEN_HITBOX_HALF_SIZE.clone()),
+            undefined,
+            true,
+            true
+        );
+        this.solen.setGroup(MBPhysicsGroups.NPC);
+        this.solen.animation.play(SolenAnimations.IDLE, true);
+    }
+
+    protected updateSolenPrompt(): void {
+        if(
+            this.solen === undefined ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanInteractWithSolen = false;
+            this.solenPromptPanel.visible = false;
+            this.solenPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const interactionAABB = this.solen.hasPhysics
+            ? this.solen.collisionShape.getBoundingRect()
+            : new AABB(this.solen.position.clone(), SOLEN_INTERACTION_HALF_SIZE.clone());
+        const promptAABB = new AABB(
+            interactionAABB.center.clone(),
+            new Vec2(
+                interactionAABB.halfSize.x + SOLEN_INTERACTION_RANGE_PADDING.x,
+                interactionAABB.halfSize.y + SOLEN_INTERACTION_RANGE_PADDING.y
+            )
+        );
+
+        this.playerCanInteractWithSolen = playerAABB.overlapArea(promptAABB) > 0;
+        this.solenPromptLabel.text = getSolenConversationForInteraction().promptText;
+        this.solenPromptPanel.visible = this.playerCanInteractWithSolen;
+        this.solenPromptLabel.visible = this.playerCanInteractWithSolen;
+    }
+
+    protected startSolenConversation(): void {
+        const conversation = getSolenConversationForInteraction();
+        this.playerCanInteractWithSolen = false;
+        this.solenPromptPanel.visible = false;
+        this.solenPromptLabel.visible = false;
+        this.showDialogue(conversation.pages, () => this.completeSolenConversation(conversation));
+    }
+
+    protected completeSolenConversation(conversation: SolenConversation): void {
+        const finalizeConversation = (): void => {
+            if(conversation.id === "solen_intro_lantern"){
+                MBProgress.unlockHearth();
+            }
+
+            if(conversation.advanceStageOnComplete && conversation.stageIndex !== undefined){
+                MBProgress.setSolenConversationStage(
+                    Math.max(MBProgress.getSolenConversationStage(), conversation.stageIndex + 1)
+                );
+            }
+        };
+
+        if(conversation.rewardUpgradeId !== undefined && !MBProgress.hasUpgrade(conversation.rewardUpgradeId)){
+            this.showUpgradeRewardPopup(conversation.rewardUpgradeId, () => {
+                this.grantUpgrade(conversation.rewardUpgradeId);
+                finalizeConversation();
+            });
+            return;
+        }
+
+        finalizeConversation();
+    }
+
+    protected spawnWretch(spawn: Vec2): MBAnimatedSprite {
+        const wretch = this.add.animatedSprite(WRETCH_SPRITE_KEY, "PRIMARY");
+        wretch.position.copy(spawn);
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_WRETCH_PHYSICS
+        });
+
+        wretch.scale.copy(physics.spriteScale);
+
+        if(physics.snapToFloor && physics.movementMode === "ground"){
+            placeGroundEnemyOnFloor(wretch, this.walls, this.tilemapScale, physics.bodyHitboxHalfSize);
+        }
+
+        addEnemyPhysics(wretch, physics, true, false);
+        wretch.setGroup(MBPhysicsGroups.BOSS);
+        wretch.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        wretch.addAI(WretchController, {
+            player: this.player,
+            tilemap: this.wallsLayerKey
+        });
+        this.registerDamageableEnemy(wretch, wretch.ai as WretchController);
+        return wretch;
     }
 
 }

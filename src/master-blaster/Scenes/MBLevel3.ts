@@ -95,7 +95,7 @@ export default class Level3 extends MBLevel {
 
     public startScene(): void {
         super.startScene();
-        this.nextLevel = MainMenu;
+        this.travelPortalDestination = MainMenu;
         this.updateSnowBackground();
     }
 

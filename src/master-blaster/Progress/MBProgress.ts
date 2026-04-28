@@ -131,6 +131,7 @@ export interface MBProgressState {
     defeatedBosses: Set<BossId>;
     hearthUnlocked: boolean;
     godModeEnabled: boolean;
+    solenConversationStage: number;
 }
 
 export interface MBProgressSnapshot {
@@ -139,6 +140,7 @@ export interface MBProgressSnapshot {
     defeatedBosses: Array<BossId>;
     hearthUnlocked: boolean;
     godModeEnabled: boolean;
+    solenConversationStage: number;
 }
 
 export type MBProgressInitData = MBProgressSnapshot;
@@ -208,7 +210,8 @@ export function createMBProgressState(): MBProgressState {
         acquisitionOrder: [],
         defeatedBosses: new Set<BossId>(),
         hearthUnlocked: false,
-        godModeEnabled: false
+        godModeEnabled: false,
+        solenConversationStage: 0
     };
 }
 
@@ -218,7 +221,8 @@ export function cloneMBProgressState(state: MBProgressState): MBProgressState {
         acquisitionOrder: state.acquisitionOrder.slice(),
         defeatedBosses: new Set<BossId>(state.defeatedBosses),
         hearthUnlocked: state.hearthUnlocked,
-        godModeEnabled: state.godModeEnabled
+        godModeEnabled: state.godModeEnabled,
+        solenConversationStage: state.solenConversationStage
     };
 }
 
@@ -228,7 +232,8 @@ export function createMBProgressSnapshot(state: MBProgressState): MBProgressSnap
         acquisitionOrder: state.acquisitionOrder.slice(),
         defeatedBosses: Array.from(state.defeatedBosses),
         hearthUnlocked: state.hearthUnlocked,
-        godModeEnabled: state.godModeEnabled
+        godModeEnabled: state.godModeEnabled,
+        solenConversationStage: state.solenConversationStage
     };
 }
 
@@ -299,6 +304,7 @@ export class MBProgressStore {
         this.state.defeatedBosses = new Set<BossId>(defeatedBosses);
         this.state.hearthUnlocked = snapshot.hearthUnlocked === true;
         this.state.godModeEnabled = snapshot.godModeEnabled === true;
+        this.state.solenConversationStage = Math.max(0, Math.floor(snapshot.solenConversationStage ?? 0));
 
         return this.cloneState();
     }
@@ -314,7 +320,8 @@ export class MBProgressStore {
             acquisitionOrder: [...snapshot.upgrades],
             defeatedBosses: [...snapshot.defeatedBosses],
             hearthUnlocked: snapshot.hearthUnlocked,
-            godModeEnabled: snapshot.godModeEnabled === true
+            godModeEnabled: snapshot.godModeEnabled === true,
+            solenConversationStage: snapshot.upgrades.includes(UpgradeId.LANTERN) ? 1 : 0
         });
     }
 
@@ -385,6 +392,23 @@ export class MBProgressStore {
 
     public isHearthUnlocked(): boolean {
         return this.state.hearthUnlocked;
+    }
+
+    public getDefeatedBossCount(): number {
+        return this.state.defeatedBosses.size;
+    }
+
+    public getSolenConversationStage(): number {
+        return this.state.solenConversationStage;
+    }
+
+    public setSolenConversationStage(stage: number): void {
+        this.state.solenConversationStage = Math.max(0, Math.floor(stage));
+    }
+
+    public advanceSolenConversationStage(): number {
+        this.state.solenConversationStage += 1;
+        return this.state.solenConversationStage;
     }
 
     public getEssentialHudUpgrades(): Array<UpgradeId | null> {

@@ -32,6 +32,7 @@ import { BossHandle } from "../Bosses/BossHandle";
 import { executeCheatCode } from "../Cheats/MBCheatCodes";
 import { MBProgress, UPGRADE_METADATA, UPGRADE_ORDER, UpgradeId } from "../Progress/MBProgress";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
+import { EnemyDamageable } from "../Enemies/EnemyDamageable";
 import MainMenu from "./MainMenu";
 
 import Particle from "../../Wolfie2D/Nodes/Graphics/Particle";
@@ -52,6 +53,16 @@ export const MBLayers = {
 
 // The layers as a type
 export type MBLayer = typeof MBLayers[keyof typeof MBLayers]
+
+type DamageableEnemyBinding = {
+    sprite: AnimatedSprite;
+    damageable: EnemyDamageable;
+};
+
+export type DialoguePage = {
+    speaker: string;
+    text: string;
+};
 
 /**
  * An abstract Master Blaster scene class combining all the things
@@ -92,6 +103,16 @@ export default abstract class MBLevel extends Scene {
     private upgradeRewardElements: Array<CanvasNode>;
     private upgradeRewardOpen: boolean;
     private upgradeRewardOnConfirm: (() => void) | null;
+    private dialogueOverlay!: Rect;
+    private dialoguePanel!: Rect;
+    private dialogueSpeakerLabel!: Label;
+    private dialogueLines: Array<Label>;
+    private dialogueAdvanceLabel!: Label;
+    private dialogueElements: Array<CanvasNode>;
+    private dialogueOpen: boolean;
+    private dialoguePages: Array<DialoguePage>;
+    private dialoguePageIndex: number;
+    private dialogueOnComplete: (() => void) | null;
     private currentSelectedUpgradeId: UpgradeId | null;
     protected boss?: BossHandle;
 
@@ -102,9 +123,13 @@ export default abstract class MBLevel extends Scene {
     protected levelEndHalfSize!: Vec2;
 
     protected levelEndArea!: Rect;
-    protected nextLevel!: new (...args: any) => Scene;
+    protected travelPortalDestination!: new (...args: any) => Scene;
     protected levelEndTimer!: Timer;
     protected levelEndLabel!: Label;
+    protected levelEndPromptPanel!: Rect;
+    protected levelEndPromptLabel!: Label;
+    protected playerCanInteractWithLevelEnd: boolean;
+    protected levelEndTransitionStarted: boolean;
 
     // Level end transition timer and graphic
     protected levelTransitionTimer!: Timer;
@@ -137,6 +162,7 @@ export default abstract class MBLevel extends Scene {
     protected bossDamageCooldownDuration: number;
     protected damagingTileDamage: number;
     protected damagingTileKnockbackSpeed: number;
+    private damageableEnemies: Array<DamageableEnemyBinding>;
 
     /** Sound and music */
     protected levelMusicKey!: string;
@@ -214,9 +240,18 @@ export default abstract class MBLevel extends Scene {
         offsetY: 2
     };
 
+    protected static readonly LEVEL_END_PROMPT_TUNING = {
+        rangePaddingX: 36,
+        rangePaddingY: 28,
+        screenCenterX: 600,
+        screenCenterY: 724
+    };
+
     protected static readonly HEALTH_BAR_FILL_COLOR = new Color(88, 35, 33, 1);
     protected static readonly HEALTH_BAR_TRACK_COLOR = new Color(38, 20, 18, 0.95);
     protected static readonly HEALTH_BAR_BORDER_COLOR = new Color(183, 146, 82, 1);
+    protected static readonly PLAYER_BASE_MAX_HEALTH = 100;
+    protected static readonly HEALTH_BUFF_MAX_HEALTH_BONUS = 20;
 
     // PAUSE TUNING
     // Change these values to adjust the pause menu layout without digging through UI creation code.
@@ -251,14 +286,15 @@ export default abstract class MBLevel extends Scene {
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, {...options, physics: {
             // TODO configure the collision groups and collision map
-                groupNames: [MBPhysicsGroups.GROUND, MBPhysicsGroups.PLAYER, MBPhysicsGroups.PLAYER_WEAPON, MBPhysicsGroups.DESTRUCTABLE, MBPhysicsGroups.BOSS],
+                groupNames: [MBPhysicsGroups.GROUND, MBPhysicsGroups.PLAYER, MBPhysicsGroups.PLAYER_WEAPON, MBPhysicsGroups.DESTRUCTABLE, MBPhysicsGroups.BOSS, MBPhysicsGroups.NPC],
                 collisions: [
-                    //        G  P  W  D  B
-                    /* G */  [0, 1, 1, 0, 1],
-                    /* P */  [1, 0, 0, 1, 1],
-                    /* W */  [1, 0, 0, 1, 1],
-                    /* D */  [0, 1, 1, 0, 0],
-                    /* B */  [1, 1, 1, 0, 0]
+                    //        G  P  W  D  B  N
+                    /* G */  [0, 1, 1, 0, 1, 1],
+                    /* P */  [1, 0, 0, 1, 1, 1],
+                    /* W */  [1, 0, 0, 1, 1, 0],
+                    /* D */  [0, 1, 1, 0, 0, 0],
+                    /* B */  [1, 1, 1, 0, 0, 0],
+                    /* N */  [1, 1, 0, 0, 0, 0]
                 ]
          }});
         this.add = new MBFactoryManager(this, this.tilemaps);
@@ -279,12 +315,21 @@ export default abstract class MBLevel extends Scene {
         this.upgradeRewardElements = new Array();
         this.upgradeRewardOpen = false;
         this.upgradeRewardOnConfirm = null;
+        this.dialogueLines = new Array();
+        this.dialogueElements = new Array();
+        this.dialogueOpen = false;
+        this.dialoguePages = new Array();
+        this.dialoguePageIndex = 0;
+        this.dialogueOnComplete = null;
         this.currentSelectedUpgradeId = null;
         this.boss = undefined;
         this.bossDamageCooldownTimer = 0;
         this.bossDamageCooldownDuration = 0.2;
         this.damagingTileDamage = 1;
         this.damagingTileKnockbackSpeed = 170;
+        this.damageableEnemies = new Array();
+        this.playerCanInteractWithLevelEnd = false;
+        this.levelEndTransitionStarted = false;
     }
 
     public initScene(init: Record<string, any>): void {
@@ -294,6 +339,8 @@ export default abstract class MBLevel extends Scene {
     public startScene(): void {
         this.deathTriggered = false;
         this.bossDamageCooldownTimer = 0;
+        this.playerCanInteractWithLevelEnd = false;
+        this.levelEndTransitionStarted = false;
 
         // Initialize the layers
         this.initLayers();
@@ -370,6 +417,7 @@ export default abstract class MBLevel extends Scene {
         }
 
         this.refreshBossUI();
+        this.updateLevelEndPrompt();
 
         if(!this.pauseMenuOpen){
             this.handleDamagingTileContact();
@@ -382,6 +430,13 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected handlePauseInput(): void {
+        if(this.dialogueOpen){
+            if(Input.isKeyJustPressed("enter") || Input.isMouseJustPressed(0)){
+                this.advanceDialogue();
+            }
+            return;
+        }
+
         if(this.upgradeRewardOpen){
             if(Input.isKeyJustPressed("enter") || Input.isKeyJustPressed("space")){
                 this.confirmUpgradeRewardPopup();
@@ -396,6 +451,10 @@ export default abstract class MBLevel extends Scene {
 
         if(this.pauseMenuOpen && this.pauseCheatInput.focused && Input.isKeyJustPressed("enter")){
             void this.executePauseCheatCode(this.pauseCheatInput.text);
+        }
+
+        if(!this.pauseMenuOpen && this.playerCanInteractWithLevelEnd && Input.isKeyJustPressed("e")){
+            this.handleEnteredLevelEnd();
         }
     }
 
@@ -570,11 +629,15 @@ export default abstract class MBLevel extends Scene {
                 this.handleBossParticleHit(event.data.get("node"));
                 break;
             }
+            case MBEvents.ENEMY_PARTICLE_HIT: {
+                this.handleEnemyParticleHit(event.data.get("node"));
+                break;
+            }
 
             // When the level ends, change the scene to the next level
             case MBEvents.LEVEL_END: {
                 this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey })
-                this.sceneManager.changeToScene(this.nextLevel, MBProgress.toInitData());
+                this.sceneManager.changeToScene(this.travelPortalDestination, MBProgress.toInitData());
                 break;
             }
             case MBEvents.HEALTH_CHANGE: {
@@ -676,11 +739,61 @@ export default abstract class MBLevel extends Scene {
      * Handle the event when the player enters the level end area.
      */
     protected handleEnteredLevelEnd(): void {
-        // If the timer hasn't run yet, start the end level animation
-        if (!this.levelEndTimer.hasRun() && this.levelEndTimer.isStopped()) {
-            this.levelEndTimer.start();
-            this.levelEndLabel.tweens.play("slideIn");
+        if(this.levelEndTransitionStarted){
+            return;
         }
+
+        this.levelEndTransitionStarted = true;
+        this.playerCanInteractWithLevelEnd = false;
+        this.levelEndPromptPanel.visible = false;
+        this.levelEndPromptLabel.visible = false;
+        Input.disableInput();
+
+        if(this.player !== undefined){
+            this.player.freeze();
+            if(this.player.hasPhysics){
+                this.player.disablePhysics();
+            }
+        }
+
+        this.levelTransitionScreen.tweens.play("fadeIn");
+    }
+
+    protected updateLevelEndPrompt(): void {
+        if(
+            this.levelEndArea === undefined ||
+            this.player === undefined ||
+            !this.levelEndArea.hasPhysics ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.upgradeRewardOpen ||
+            this.dialogueOpen ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanInteractWithLevelEnd = false;
+            if(this.levelEndPromptPanel !== undefined){
+                this.levelEndPromptPanel.visible = false;
+            }
+            if(this.levelEndPromptLabel !== undefined){
+                this.levelEndPromptLabel.visible = false;
+            }
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const levelEndAABB = this.levelEndArea.collisionShape.getBoundingRect();
+        const promptTuning = MBLevel.LEVEL_END_PROMPT_TUNING;
+        const promptRangeAABB = new AABB(
+            levelEndAABB.center.clone(),
+            new Vec2(
+                levelEndAABB.halfSize.x + promptTuning.rangePaddingX,
+                levelEndAABB.halfSize.y + promptTuning.rangePaddingY
+            )
+        );
+        this.playerCanInteractWithLevelEnd = playerAABB.overlapArea(promptRangeAABB) > 0;
+
+        this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
     }
     /**
      * This is the same healthbar found in The Yellow Submarine. I've adapted it slightly to account for the zoom factor. Other than that, the
@@ -690,6 +803,8 @@ export default abstract class MBLevel extends Scene {
      * @param maxHealth the maximum health of the player
      */
     protected handleHealthChange(currentHealth: number, maxHealth: number): void {
+        this.updateHealthBarBounds(maxHealth);
+
         const frameInset = 2;
         const fillHeight = Math.max(this.healthBarBg.size.y - frameInset, 2);
         const maxFillWidth = Math.max(this.healthBarBg.size.x - frameInset, 1);
@@ -705,7 +820,11 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected grantUpgrade(upgradeId: UpgradeId, refreshUI: boolean = true): void {
-        MBProgress.grantUpgrade(upgradeId);
+        const granted = MBProgress.grantUpgrade(upgradeId);
+
+        if(granted){
+            this.applyGrantedUpgradeEffects(upgradeId);
+        }
 
         if(refreshUI){
             this.refreshInventoryUI();
@@ -750,6 +869,85 @@ export default abstract class MBLevel extends Scene {
         }
     }
 
+    protected updateHealthBarBounds(maxHealth: number): void {
+        if(this.healthBarBg === undefined || this.healthBar === undefined){
+            return;
+        }
+
+        const hud = MBLevel.HUD_TUNING;
+        const zoom = this.getViewScale();
+        const maxHealthRatio = Math.max(1, maxHealth) / MBLevel.PLAYER_BASE_MAX_HEALTH;
+        const healthBarWidth = Math.round(hud.healthBarWidth * maxHealthRatio);
+        const healthBarHeight = hud.healthBarHeight;
+        const healthBarCenterX = (hud.left + healthBarWidth / 2) / zoom;
+        const healthBarCenterY = (hud.healthBarTop + healthBarHeight / 2) / zoom;
+
+        this.healthBarBg.size.set(healthBarWidth, healthBarHeight);
+        this.healthBarBg.position.set(healthBarCenterX, healthBarCenterY);
+        this.healthBar.position.y = healthBarCenterY;
+    }
+
+    protected getResolvedPlayerMaxHealth(): number {
+        let maxHealth = MBLevel.PLAYER_BASE_MAX_HEALTH;
+
+        if(MBProgress.hasUpgrade(UpgradeId.HEALTH_BUFF)){
+            maxHealth += MBLevel.HEALTH_BUFF_MAX_HEALTH_BONUS;
+        }
+
+        return maxHealth;
+    }
+
+    protected applyPlayerProgressEffects(fillToMax: boolean = false, grantedUpgradeId?: UpgradeId): void {
+        if(this.player === undefined){
+            return;
+        }
+
+        const controller = this.player.ai as PlayerController | undefined;
+        if(controller === undefined){
+            return;
+        }
+
+        const previousMaxHealth = controller.maxHealth;
+        const previousHealth = controller.health;
+        const resolvedMaxHealth = this.getResolvedPlayerMaxHealth();
+        controller.maxHealth = resolvedMaxHealth;
+
+        if(fillToMax){
+            controller.health = resolvedMaxHealth;
+            return;
+        }
+
+        if(grantedUpgradeId === UpgradeId.HEALTH_BUFF && resolvedMaxHealth > previousMaxHealth){
+            controller.health = Math.min(resolvedMaxHealth, previousHealth + (resolvedMaxHealth - previousMaxHealth));
+            return;
+        }
+
+        controller.health = Math.min(previousHealth, resolvedMaxHealth);
+    }
+
+    protected applyGrantedUpgradeEffects(upgradeId: UpgradeId): void {
+        switch(upgradeId){
+            case UpgradeId.HEALTH_BUFF:
+                this.applyPlayerProgressEffects(false, upgradeId);
+                break;
+            default:
+                break;
+        }
+    }
+
+    protected refreshPlayerHealthUIFromController(): void {
+        if(this.player === undefined){
+            return;
+        }
+
+        const controller = this.player.ai as PlayerController | undefined;
+        if(controller === undefined){
+            return;
+        }
+
+        this.handleHealthChange(controller.health, controller.maxHealth);
+    }
+
     protected handleBossParticleHit(particleId: number): void {
         if(this.boss === undefined || this.boss.isDefeated()){
             return;
@@ -779,6 +977,54 @@ export default abstract class MBLevel extends Scene {
 
         this.boss.damage(this.getPlayerWeaponDamage());
         this.bossDamageCooldownTimer = this.bossDamageCooldownDuration;
+    }
+
+    protected handleEnemyParticleHit(particleId: number): void {
+        if(this.damageableEnemies.length === 0){
+            return;
+        }
+
+        const particle = this.playerWeaponSystem.getPool().find(candidate => candidate.id === particleId);
+        if(particle === undefined || !particle.inUse){
+            return;
+        }
+
+        for(let i = this.damageableEnemies.length - 1; i >= 0; i--){
+            const binding = this.damageableEnemies[i];
+
+            if(binding.damageable.isDefeated() && !binding.sprite.hasPhysics){
+                this.damageableEnemies.splice(i, 1);
+                continue;
+            }
+
+            if(binding.damageable.isDefeated() || !binding.sprite.hasPhysics){
+                continue;
+            }
+
+            const enemyAABB = binding.sprite.collisionShape.getBoundingRect();
+            if(particle.sweptRect.overlapArea(enemyAABB) <= 0){
+                continue;
+            }
+
+            particle.setParticleInactive();
+            particle.vel = Vec2.ZERO;
+            binding.damageable.damage(this.getPlayerWeaponDamage());
+            return;
+        }
+    }
+
+    protected registerDamageableEnemy(sprite: AnimatedSprite, damageable: EnemyDamageable): void {
+        const existing = this.damageableEnemies.find(binding => binding.sprite === sprite);
+        if(existing !== undefined){
+            existing.damageable = damageable;
+            return;
+        }
+
+        this.damageableEnemies.push({ sprite, damageable });
+    }
+
+    protected unregisterDamageableEnemy(sprite: AnimatedSprite): void {
+        this.damageableEnemies = this.damageableEnemies.filter(binding => binding.sprite !== sprite);
     }
 
     protected refreshBossUI(): void {
@@ -992,6 +1238,84 @@ export default abstract class MBLevel extends Scene {
         }
 
         return lines;
+    }
+
+    protected hasBlockingModal(): boolean {
+        return this.upgradeRewardOpen || this.dialogueOpen;
+    }
+
+    protected isDialogueOpen(): boolean {
+        return this.dialogueOpen;
+    }
+
+    protected showDialogue(pages: ReadonlyArray<DialoguePage>, onComplete?: () => void): void {
+        if(pages.length === 0){
+            return;
+        }
+
+        this.dialoguePages = pages.map(page => ({
+            speaker: page.speaker,
+            text: page.text
+        }));
+        this.dialoguePageIndex = 0;
+        this.dialogueOnComplete = onComplete ?? null;
+        this.dialogueOpen = true;
+        this.pauseCheatInput.focused = false;
+
+        for(const element of this.dialogueElements){
+            element.visible = true;
+        }
+
+        this.refreshDialoguePage();
+        this.setGameplayPaused(true);
+    }
+
+    protected advanceDialogue(): void {
+        if(!this.dialogueOpen){
+            return;
+        }
+
+        if(this.dialoguePageIndex < this.dialoguePages.length - 1){
+            this.dialoguePageIndex += 1;
+            this.refreshDialoguePage();
+            return;
+        }
+
+        const onComplete = this.dialogueOnComplete;
+        this.hideDialogue();
+
+        if(onComplete !== null){
+            onComplete();
+        }
+    }
+
+    protected hideDialogue(): void {
+        this.dialogueOpen = false;
+        this.dialoguePages = new Array();
+        this.dialoguePageIndex = 0;
+        this.dialogueOnComplete = null;
+
+        for(const element of this.dialogueElements){
+            element.visible = false;
+        }
+
+        this.setGameplayPaused(this.pauseMenuOpen);
+    }
+
+    protected refreshDialoguePage(): void {
+        if(!this.dialogueOpen || this.dialoguePages.length === 0){
+            return;
+        }
+
+        const currentPage = this.dialoguePages[this.dialoguePageIndex];
+        const wrappedLines = this.wrapPausePopupDescription(currentPage.text, 54, this.dialogueLines.length);
+        this.dialogueSpeakerLabel.text = currentPage.speaker;
+        this.dialogueLines.forEach((line, index) => {
+            line.text = wrappedLines[index] ?? "";
+        });
+
+        const isLastPage = this.dialoguePageIndex >= this.dialoguePages.length - 1;
+        this.dialogueAdvanceLabel.text = isLastPage ? "[Enter / Click] Close" : "[Enter / Click] Next";
     }
 
     protected showUpgradeRewardPopup(upgradeId: UpgradeId, onConfirm?: () => void): void {
@@ -1246,6 +1570,7 @@ export default abstract class MBLevel extends Scene {
         this.receiver.subscribe(MBEvents.PLAYER_DEAD);
         this.receiver.subscribe(MBEvents.PARTICLE_HIT);
         this.receiver.subscribe(MBEvents.BOSS_PARTICLE_HIT);
+        this.receiver.subscribe(MBEvents.ENEMY_PARTICLE_HIT);
     }
     /**
      * Adds in any necessary UI to the game
@@ -1308,6 +1633,7 @@ export default abstract class MBLevel extends Scene {
         }
 
         this.refreshHudInventorySlots();
+        this.refreshPlayerHealthUIFromController();
 
         this.initializeBossUI(
             new Vec2(toUIScreenX(bossHud.nameCenterX), toUIScreenY(bossHud.nameCenterY)),
@@ -1339,6 +1665,27 @@ export default abstract class MBLevel extends Scene {
                 }
             ]
         });
+
+        const promptTuning = MBLevel.LEVEL_END_PROMPT_TUNING;
+        const promptPosition = new Vec2(promptTuning.screenCenterX / this.getViewScale(), promptTuning.screenCenterY / this.getViewScale());
+
+        this.levelEndPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(196, 40)
+        });
+        this.levelEndPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.levelEndPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.levelEndPromptPanel.visible = false;
+
+        this.levelEndPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Enter Portal"
+        });
+        this.levelEndPromptLabel.size.set(220, 24);
+        this.levelEndPromptLabel.font = "PixelSimple";
+        this.levelEndPromptLabel.fontSize = 18;
+        this.levelEndPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.levelEndPromptLabel.visible = false;
 
         this.levelTransitionScreen = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, { position: new Vec2(300, 200), size: new Vec2(600, 400) });
         this.levelTransitionScreen.color = new Color(34, 32, 52);
@@ -1377,6 +1724,7 @@ export default abstract class MBLevel extends Scene {
         });
 
         this.initializeUpgradeRewardUI();
+        this.initializeDialogueUI();
     }
 
     protected initializeBossUI(namePosition: Vec2, barPosition: Vec2, nameSize: Vec2, barSize: Vec2, barRadius: number): void {
@@ -1710,6 +2058,68 @@ export default abstract class MBLevel extends Scene {
         this.upgradeRewardElements.push(this.upgradeRewardConfirmButton);
     }
 
+    protected initializeDialogueUI(): void {
+        const size = this.viewport.getHalfSize();
+        const viewSize = size.scaled(2);
+        const viewportPosition = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
+        const viewportGraphicSize = (x: number, y: number): Vec2 => new Vec2(viewSize.x * (x / 1200), viewSize.y * (y / 800));
+
+        this.dialogueOverlay = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: size.clone(),
+            size: viewSize
+        });
+        this.dialogueOverlay.color = new Color(12, 10, 18, 0.72);
+        this.dialogueOverlay.visible = false;
+        this.dialogueElements.push(this.dialogueOverlay);
+
+        this.dialoguePanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: viewportPosition(600, 642),
+            size: viewportGraphicSize(760, 150)
+        });
+        this.dialoguePanel.color = new Color(18, 16, 22, 0.97);
+        this.dialoguePanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.dialoguePanel.visible = false;
+        this.dialogueElements.push(this.dialoguePanel);
+
+        this.dialogueSpeakerLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: viewportPosition(360, 594),
+            text: ""
+        });
+        this.dialogueSpeakerLabel.size.copy(viewportGraphicSize(260, 24));
+        this.dialogueSpeakerLabel.font = "PixelSimple";
+        this.dialogueSpeakerLabel.fontSize = 18;
+        this.dialogueSpeakerLabel.textColor = new Color(246, 238, 214, 1);
+        this.dialogueSpeakerLabel.setHAlign("left");
+        this.dialogueSpeakerLabel.visible = false;
+        this.dialogueElements.push(this.dialogueSpeakerLabel);
+
+        for(let i = 0; i < 4; i++){
+            const line = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+                position: viewportPosition(600, 622 + i * 20),
+                text: ""
+            });
+            line.size.copy(viewportGraphicSize(680, 18));
+            line.font = "PixelSimple";
+            line.fontSize = 14;
+            line.textColor = new Color(228, 226, 232, 1);
+            line.setHAlign("left");
+            line.visible = false;
+            this.dialogueLines.push(line);
+            this.dialogueElements.push(line);
+        }
+
+        this.dialogueAdvanceLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: viewportPosition(846, 706),
+            text: ""
+        });
+        this.dialogueAdvanceLabel.size.copy(viewportGraphicSize(220, 18));
+        this.dialogueAdvanceLabel.font = "PixelSimple";
+        this.dialogueAdvanceLabel.fontSize = 11;
+        this.dialogueAdvanceLabel.textColor = new Color(210, 196, 164, 1);
+        this.dialogueAdvanceLabel.visible = false;
+        this.dialogueElements.push(this.dialogueAdvanceLabel);
+    }
+
     /**
      * Initializes the particles system used by the player's weapon.
      */
@@ -1798,6 +2208,7 @@ export default abstract class MBLevel extends Scene {
             weaponSystem: this.playerWeaponSystem, 
             tilemap: this.wallsLayerKey
         });
+        this.applyPlayerProgressEffects(true);
     }
     /**
      * Initializes the viewport
@@ -1820,7 +2231,6 @@ export default abstract class MBLevel extends Scene {
         
         this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, { position: this.levelEndPosition, size: this.levelEndHalfSize });
         this.levelEndArea.addPhysics(undefined, undefined, false, true);
-        this.levelEndArea.setTrigger(MBPhysicsGroups.PLAYER, MBEvents.PLAYER_ENTERED_LEVEL_END, "");
         this.levelEndArea.color = new Color(255, 0, 255, .20);
         
     }

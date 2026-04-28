@@ -1,9 +1,22 @@
 import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
 import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
+import Input from "../../Wolfie2D/Input/Input";
+import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
+import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
+import Label from "../../Wolfie2D/Nodes/UIElements/Label";
+import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
+import Color from "../../Wolfie2D/Utils/Color";
 import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import { MBEvents } from "../MBEvents";
+import { addEnemyPhysics, createScaledEnemyPhysicsConfig, placeGroundEnemyOnFloor } from "../Enemies/EnemyPhysicsUtils";
+import WretchController from "../Enemies/Minions/wretch/WretchController";
+import { DEFAULT_WRETCH_PHYSICS, WRETCH_SPRITE_KEY, WRETCH_SPRITE_PATH } from "../Enemies/Minions/wretch/WretchConfig";
+import BatController from "../Enemies/Minions/bat/BatController";
+import { BAT_SPRITE_KEY, BAT_SPRITE_PATH, DEFAULT_BAT_PHYSICS } from "../Enemies/Minions/bat/BatConfig";
+import SlimeController from "../Enemies/Minions/slime/SlimeController";
+import { DEFAULT_SLIME_PHYSICS, SLIME_SPRITE_KEY, SLIME_SPRITE_PATH } from "../Enemies/Minions/slime/SlimeConfig";
 import PlayerController from "../Player/PlayerController";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import Level2Boss, { VorrathAnimations } from "../Bosses/Level2Boss";
@@ -25,17 +38,43 @@ import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 export default class Level2 extends MBLevel {
     private caveVignette!: Sprite;
     private blindVignette!: Sprite;
+    private healthBuffCarrierSlime: MBAnimatedSprite | null = null;
+    private healthBuffCarrierIcon: Sprite | null = null;
+    private healthBuffPickupPromptPanel!: Rect;
+    private healthBuffPickupPromptLabel!: Label;
     private level2Boss!: Level2Boss;
     private level2BossSprite!: MBAnimatedSprite;
     private bossDefeatVignetteTimer: number = 0;
     private bossDefeatVignetteDelayStarted: boolean = false;
     private furCoatRewardShown: boolean = false;
     private furCoatGrantedFromBoss: boolean = false;
+    private healthBuffRingDropped: boolean = false;
+    private playerCanPickUpHealthBuff: boolean = false;
     private level2BossProgressRecorded: boolean = false;
-    // new Vec2(1536, 752) 2600, 1050
+
+    // new Vec2(1536, 752) 2600, 1050 is testing boss coord spawn
     public static readonly PLAYER_SPAWN = new Vec2(1536, 740);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
+
+    public static readonly WRETCH_SPAWNS = [
+        // Add or remove Vec2 positions here to place Wretches in Level 2
+            new Vec2(1920, 770),
+            new Vec2(1584, 1120),
+            new Vec2(1068, 960),
+            new Vec2(304, 860),
+    ];
+    // Temporary bat placements for quick flying-enemy testing in Level 2.
+    public static readonly BAT_SPAWNS = [
+        new Vec2(736, 816),
+        new Vec2(448, 670)
+    ];
+    public static readonly HEALTH_BUFF_SLIME_SPAWN = new Vec2(384, 870);
+    public static readonly HEALTH_BUFF_SLIME_ICON_OFFSET = new Vec2(0, -4);
+    public static readonly HEALTH_BUFF_SLIME_ICON_SCALE = new Vec2(0.22, 0.22);
+    public static readonly HEALTH_BUFF_SLIME_ICON_ALPHA = 0.65;
+    public static readonly HEALTH_BUFF_PICKUP_HALF_SIZE = new Vec2(24, 24);
+
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
     public static readonly VORRATH_SPRITE_PATH = "game_assets/spritesheets/enemies/bosses/vorrath.json";
     public static readonly VORRATH_ROCK_KEY = "VORRATH_ROCK_KEY";
@@ -105,7 +144,7 @@ export default class Level2 extends MBLevel {
     public static readonly DYING_AUDIO_KEY = "DYING_AUDIO";
     public static readonly DYING_AUDIO_PATH = "game_assets/sounds/dying.wav"
 
-    public static readonly LEVEL_END = new AABB(new Vec2(224, 232), new Vec2(24, 16));
+    public static readonly LEVEL_END = new AABB(new Vec2(133, 69), new Vec2(24, 16));
 
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, options);
@@ -128,7 +167,7 @@ export default class Level2 extends MBLevel {
         this.dyingAudioKey = Level2.DYING_AUDIO_KEY;
 
         // Level end size and position
-        this.levelEndPosition = new Vec2(32, 216).mult(this.tilemapScale);
+        this.levelEndPosition = new Vec2(134*16, 69*16).mult(this.tilemapScale);
         this.levelEndHalfSize = new Vec2(32, 32).mult(this.tilemapScale);
 
     }
@@ -141,6 +180,9 @@ export default class Level2 extends MBLevel {
         // Load in the player's sprite
         this.load.spritesheet(this.playerSpriteKey, Level2.PLAYER_SPRITE_PATH);
         this.load.spritesheet(Level2.VORRATH_SPRITE_KEY, Level2.VORRATH_SPRITE_PATH);
+        this.load.spritesheet(WRETCH_SPRITE_KEY, WRETCH_SPRITE_PATH);
+        this.load.spritesheet(BAT_SPRITE_KEY, BAT_SPRITE_PATH);
+        this.load.spritesheet(SLIME_SPRITE_KEY, SLIME_SPRITE_PATH);
         this.load.image(Level2.VORRATH_ROCK_KEY, Level2.VORRATH_ROCK_PATH);
         this.load.image(Level2.LAVA_PILLAR_KEY, Level2.LAVA_PILLAR_PATH);
         // Load the cave visibility vignette overlay
@@ -169,7 +211,10 @@ export default class Level2 extends MBLevel {
 
     public startScene(): void {
         super.startScene();
-        this.nextLevel = MainMenu;
+        this.initializeWretches();
+        this.initializeBats();
+        this.initializeHealthBuffSlime();
+        this.travelPortalDestination = MainMenu;
         this.bossDefeatVignetteTimer = 0;
         this.bossDefeatVignetteDelayStarted = false;
         this.furCoatRewardShown = false;
@@ -179,6 +224,19 @@ export default class Level2 extends MBLevel {
 
     public updateScene(deltaT: number): void {
         super.updateScene(deltaT);
+        this.updateHealthBuffSlimeVisual();
+        this.updateHealthBuffPickupPrompt();
+
+        if(
+            this.playerCanPickUpHealthBuff &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectDroppedHealthBuffRing();
+        }
+
         this.updateBossRewardState();
         this.updateBossDefeatVignetteTimer(deltaT);
         this.updateVisibilityVignettes(deltaT);
@@ -231,6 +289,110 @@ export default class Level2 extends MBLevel {
         });
     }
 
+    protected initializeWretches(): void {
+        for(const spawn of Level2.WRETCH_SPAWNS){
+            this.spawnWretch(spawn);
+        }
+    }
+
+    protected initializeBats(): void {
+        for(const spawn of Level2.BAT_SPAWNS){
+            this.spawnBat(spawn);
+        }
+    }
+
+    protected initializeHealthBuffSlime(): void {
+        this.healthBuffRingDropped = false;
+        this.playerCanPickUpHealthBuff = false;
+
+        if(MBProgress.hasUpgrade(UpgradeId.HEALTH_BUFF)){
+            this.healthBuffCarrierSlime = null;
+            this.healthBuffCarrierIcon = null;
+            return;
+        }
+
+        this.healthBuffCarrierSlime = this.spawnSlime(Level2.HEALTH_BUFF_SLIME_SPAWN);
+        this.healthBuffCarrierIcon = this.add.sprite(MBLevel.HEALTH_BUFF_ICON_KEY, MBLayers.PRIMARY);
+        this.healthBuffCarrierIcon.scale.copy(Level2.HEALTH_BUFF_SLIME_ICON_SCALE);
+        this.healthBuffCarrierIcon.alpha = Level2.HEALTH_BUFF_SLIME_ICON_ALPHA;
+        this.updateHealthBuffSlimeVisual();
+    }
+
+    protected spawnWretch(spawn: Vec2): MBAnimatedSprite {
+        const wretch = this.add.animatedSprite(WRETCH_SPRITE_KEY, MBLayers.PRIMARY);
+        wretch.position.copy(spawn);
+
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_WRETCH_PHYSICS
+        });
+
+        wretch.scale.copy(physics.spriteScale);
+
+        if(physics.snapToFloor && physics.movementMode === "ground"){
+            placeGroundEnemyOnFloor(wretch, this.walls, this.tilemapScale, physics.bodyHitboxHalfSize);
+        }
+
+        addEnemyPhysics(wretch, physics, true, false);
+        wretch.setGroup(MBPhysicsGroups.BOSS);
+        wretch.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        wretch.addAI(WretchController, {
+            player: this.player,
+            tilemap: this.wallsLayerKey
+        });
+        this.registerDamageableEnemy(wretch, wretch.ai as WretchController);
+        return wretch;
+    }
+
+    protected spawnBat(spawn: Vec2): MBAnimatedSprite {
+        const bat = this.add.animatedSprite(BAT_SPRITE_KEY, MBLayers.PRIMARY);
+        bat.position.copy(spawn);
+
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_BAT_PHYSICS
+        });
+
+        bat.scale.copy(physics.spriteScale);
+        addEnemyPhysics(bat, physics, true, false);
+        bat.setGroup(MBPhysicsGroups.BOSS);
+        bat.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        bat.addAI(BatController, {
+            player: this.player,
+            homePosition: spawn.clone(),
+            hitboxHalfSize: physics.bodyHitboxHalfSize.clone(),
+            attackHitboxHalfSize: physics.attackHitboxHalfSize.clone()
+        });
+        this.registerDamageableEnemy(bat, bat.ai as BatController);
+        return bat;
+    }
+
+    protected spawnSlime(spawn: Vec2): MBAnimatedSprite {
+        const slime = this.add.animatedSprite(SLIME_SPRITE_KEY, MBLayers.PRIMARY);
+        slime.position.copy(spawn);
+
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_SLIME_PHYSICS
+        });
+
+        slime.scale.copy(physics.spriteScale);
+
+        if(physics.snapToFloor && physics.movementMode === "ground"){
+            placeGroundEnemyOnFloor(slime, this.walls, this.tilemapScale, physics.bodyHitboxHalfSize);
+        }
+
+        addEnemyPhysics(slime, physics, true, false);
+        slime.setGroup(MBPhysicsGroups.BOSS);
+        slime.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        slime.addAI(SlimeController, {
+            player: this.player,
+            homePosition: slime.position.clone(),
+            hitboxHalfSize: physics.bodyHitboxHalfSize.clone(),
+            attackHitboxOffset: physics.attackHitboxOffset.clone(),
+            attackHitboxHalfSize: physics.attackHitboxHalfSize.clone()
+        });
+        this.registerDamageableEnemy(slime, slime.ai as SlimeController);
+        return slime;
+    }
+
     protected initializeViewport(): void {
         super.initializeViewport();
         this.viewport.setZoomLevel(Level2.LEVEL2_ZOOM);
@@ -253,6 +415,26 @@ export default class Level2 extends MBLevel {
         this.blindVignette.alpha = 0;
 
         super.initializeUI();
+
+        const promptPosition = new Vec2(600 / this.getViewScale(), 720 / this.getViewScale());
+        this.healthBuffPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(214, 40)
+        });
+        this.healthBuffPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.healthBuffPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.healthBuffPickupPromptPanel.visible = false;
+
+        this.healthBuffPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick Up HP Ring"
+        });
+        this.healthBuffPickupPromptLabel.size.set(240, 24);
+        this.healthBuffPickupPromptLabel.font = "PixelSimple";
+        this.healthBuffPickupPromptLabel.fontSize = 18;
+        this.healthBuffPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.healthBuffPickupPromptLabel.visible = false;
+
         this.updateVisibilityVignettes(1);
     }
 
@@ -279,6 +461,77 @@ export default class Level2 extends MBLevel {
 
         this.caveVignette.visible = this.caveVignette.alpha > 0.01;
         this.blindVignette.visible = this.blindVignette.alpha > 0.01;
+    }
+
+    protected updateHealthBuffSlimeVisual(): void {
+        if(this.healthBuffCarrierIcon === null){
+            return;
+        }
+
+        if(this.healthBuffRingDropped || this.healthBuffCarrierSlime === null){
+            this.healthBuffCarrierIcon.alpha = Level2.HEALTH_BUFF_SLIME_ICON_ALPHA;
+            return;
+        }
+
+        const slimeAI = this.healthBuffCarrierSlime.ai as SlimeController | undefined;
+        if((slimeAI === undefined || slimeAI.isDefeated()) && this.healthBuffCarrierSlime.alpha <= 0.05){
+            this.healthBuffCarrierIcon.position.copy(
+                this.healthBuffCarrierSlime.position.clone().add(Level2.HEALTH_BUFF_SLIME_ICON_OFFSET)
+            );
+            this.healthBuffCarrierIcon.alpha = Level2.HEALTH_BUFF_SLIME_ICON_ALPHA;
+            this.healthBuffRingDropped = true;
+            this.healthBuffCarrierSlime = null;
+            return;
+        }
+
+        this.healthBuffCarrierIcon.position.copy(
+            this.healthBuffCarrierSlime.position.clone().add(Level2.HEALTH_BUFF_SLIME_ICON_OFFSET)
+        );
+        this.healthBuffCarrierIcon.alpha = Level2.HEALTH_BUFF_SLIME_ICON_ALPHA;
+    }
+
+    protected updateHealthBuffPickupPrompt(): void {
+        if(
+            !this.healthBuffRingDropped ||
+            this.healthBuffCarrierIcon === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpHealthBuff = false;
+            this.healthBuffPickupPromptPanel.visible = false;
+            this.healthBuffPickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.healthBuffCarrierIcon.position.clone(),
+            Level2.HEALTH_BUFF_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpHealthBuff = playerAABB.overlapArea(pickupAABB) > 0;
+        this.healthBuffPickupPromptPanel.visible = this.playerCanPickUpHealthBuff;
+        this.healthBuffPickupPromptLabel.visible = this.playerCanPickUpHealthBuff;
+    }
+
+    protected collectDroppedHealthBuffRing(): void {
+        if(!this.healthBuffRingDropped || this.healthBuffCarrierIcon === null){
+            return;
+        }
+
+        this.playerCanPickUpHealthBuff = false;
+        this.healthBuffRingDropped = false;
+        this.healthBuffPickupPromptPanel.visible = false;
+        this.healthBuffPickupPromptLabel.visible = false;
+        this.healthBuffCarrierIcon.destroy();
+        this.healthBuffCarrierIcon = null;
+        this.healthBuffCarrierSlime = null;
+
+        this.grantUpgrade(UpgradeId.HEALTH_BUFF);
+        this.showUpgradeRewardPopup(UpgradeId.HEALTH_BUFF);
     }
 
     public getLevel2Boss(): Level2Boss {

@@ -19,6 +19,7 @@ export const MBEvents = {
 
     PARTICLE_HIT: "PARTICLE_HIT",
     BOSS_PARTICLE_HIT: "BOSS_PARTICLE_HIT",
+    ENEMY_PARTICLE_HIT: "ENEMY_PARTICLE_HIT",
 
     // The event sent when the player dies. Gets sent after the player's death animation
     PLAYER_DEAD: "PLAYER_DEAD"

@@ -9,6 +9,7 @@ import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
 import MBLevel2 from "./MBLevel2";
 import Level3 from "./MBLevel3";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
+import HubLevel from "./HubLevel";
 
 /**
  * The first level for Master Blaster - should be the one with the grass and the clouds.
@@ -118,7 +119,7 @@ export default class Level1 extends MBLevel {
     public startScene(): void {
         super.startScene();
         // Set the next level to be Level2
-        this.nextLevel = MBLevel2;
+        this.nextLevel = HubLevel;
     }
 
 

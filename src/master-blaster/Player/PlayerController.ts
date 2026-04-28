@@ -74,7 +74,7 @@ export default class PlayerController extends StateMachineAI {
     public readonly MAX_SPEED: number = 240;
     public readonly MIN_SPEED: number = 130;
     public readonly DASH_SPEED: number = 500;
-    public readonly FLY_SPEED: number = 220;
+    public readonly FLY_SPEED: number = 300;
     public readonly WALL_JUMP_X_SPEED: number = 220;
     public readonly WALL_JUMP_Y_SPEED: number = -330;
 

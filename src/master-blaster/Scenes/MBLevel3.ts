@@ -13,7 +13,7 @@ import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 export default class Level3 extends MBLevel {
     private snowBackground!: Sprite;
 
-    public static readonly PLAYER_SPAWN = new Vec2(400, 3200);
+    public static readonly PLAYER_SPAWN = new Vec2(112, 2700);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 

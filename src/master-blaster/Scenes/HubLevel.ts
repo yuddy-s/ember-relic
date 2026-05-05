@@ -83,7 +83,8 @@ export default class HubLevel extends MBLevel {
 
     private static readonly DEFAULT_PORTAL_PLACEMENTS: Array<PortalPlacement> = [
         { col: 98, row: 91, frame: 2, targetSceneId: ProgressTargetSceneId.LEVEL_2 },
-        { col: 169, row: 56, frame: 4, targetSceneId: ProgressTargetSceneId.LEVEL_3 }, 
+        { col: 15, row: 20, frame: 1 , targetSceneId: ProgressTargetSceneId.LEVEL_3 },
+        { col: 169, row: 56, frame: 4, targetSceneId: ProgressTargetSceneId.LEVEL_4 }, 
     ];
 
     public static readonly TILEMAP_WIDTH_TILES = 192;

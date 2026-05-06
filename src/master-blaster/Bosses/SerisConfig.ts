@@ -1,0 +1,59 @@
+export type SerisTuning = {
+    airbornePhaseDuration: number;
+    groundPhaseDuration: number;
+    diveWindupDuration: number;
+    diveDescentSpeed: number;
+    riseSpeed: number;
+    icicleRainCooldownDuration: number;
+    icicleTelegraphDuration: number;
+    glacialRoarWindupDuration: number;
+    glacialRoarActiveDuration: number;
+    glacialRoarRecoveryDuration: number;
+    glacialRoarCooldownDuration: number;
+    tailLashWindupDuration: number;
+    tailLashActiveDuration: number;
+    tailLashRecoveryDuration: number;
+    tailLashCooldownDuration: number;
+    doubleTailLashGap: number;
+    iceBreathWindupDuration: number;
+    iceBreathActiveDuration: number;
+    iceBreathRecoveryDuration: number;
+    iceBreathCooldownDuration: number;
+    iceBreathTickInterval: number;
+    iceBreathBeamHalfWidth: number;
+    iceBreathBeamHalfHeight: number;
+    iceBreathBeamWindupAlphaStart: number;
+    iceBreathBeamWindupAlphaEnd: number;
+    iceBreathBeamActiveAlpha: number;
+    iceBreathBeamRecoveryAlpha: number;
+};
+
+export const DEFAULT_SERIS_TUNING: SerisTuning = {
+    airbornePhaseDuration: 6.0,
+    groundPhaseDuration: 5.0,
+    diveWindupDuration: 0.85,
+    diveDescentSpeed: 640,
+    riseSpeed: 480,
+    icicleRainCooldownDuration: 2.8,
+    icicleTelegraphDuration: 1.25,
+    glacialRoarWindupDuration: 1.0,
+    glacialRoarActiveDuration: 2.6,
+    glacialRoarRecoveryDuration: 1.2,
+    glacialRoarCooldownDuration: 18.0,
+    tailLashWindupDuration: 0.9,
+    tailLashActiveDuration: 0.36,
+    tailLashRecoveryDuration: 1.0,
+    tailLashCooldownDuration: 2.8,
+    doubleTailLashGap: 0.34,
+    iceBreathWindupDuration: 1.1,
+    iceBreathActiveDuration: 2.7,
+    iceBreathRecoveryDuration: 1.2,
+    iceBreathCooldownDuration: 7.0,
+    iceBreathTickInterval: 0.45,
+    iceBreathBeamHalfWidth: 90,
+    iceBreathBeamHalfHeight: 28,
+    iceBreathBeamWindupAlphaStart: 0.18,
+    iceBreathBeamWindupAlphaEnd: 0.70,
+    iceBreathBeamActiveAlpha: 0.84,
+    iceBreathBeamRecoveryAlpha: 0.18
+};

@@ -55,23 +55,24 @@ export default class Level2 extends MBLevel {
     private level2BossProgressRecorded: boolean = false;
 
     // new Vec2(1536, 752) 2600, 1050 is testing boss coord spawn
-    public static readonly PLAYER_SPAWN = new Vec2(1536, 740);
+    public static readonly PLAYER_SPAWN = new Vec2(1344, 704);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 
     public static readonly WRETCH_SPAWNS = [
         // Add or remove Vec2 positions here to place Wretches in Level 2
-            new Vec2(1920, 770),
-            new Vec2(1584, 1120),
-            new Vec2(1068, 960),
-            new Vec2(304, 860),
+            new Vec2(432, 864),
+            new Vec2(672, 720),
+            new Vec2(1760, 768),
+            new Vec2(1152, 992),
     ];
     // Temporary bat placements for quick flying-enemy testing in Level 2.
     public static readonly BAT_SPAWNS = [
-        new Vec2(736, 816),
-        new Vec2(448, 670)
+        new Vec2(592, 800),
+        new Vec2(2336, 128),
+        new Vec2(2960, 992)
     ];
-    public static readonly HEALTH_BUFF_SLIME_SPAWN = new Vec2(384, 870);
+    public static readonly HEALTH_BUFF_SLIME_SPAWN = new Vec2(224, 864);
     public static readonly HEALTH_BUFF_SLIME_ICON_OFFSET = new Vec2(0, -4);
     public static readonly HEALTH_BUFF_SLIME_ICON_SCALE = new Vec2(0.22, 0.22);
     public static readonly HEALTH_BUFF_SLIME_ICON_ALPHA = 0.65;
@@ -83,8 +84,8 @@ export default class Level2 extends MBLevel {
     public static readonly VORRATH_ROCK_PATH = "game_assets/spritesheets/enemies/bosses/vorrath-rock.png";
     public static readonly LAVA_PILLAR_KEY = "LAVA_PILLAR_KEY";
     public static readonly LAVA_PILLAR_PATH = "game_assets/art/lava-pillar.png";
-    public static readonly VORRATH_SPAWN = new Vec2(2448, 1050);
-    public static readonly VORRATH_SCALE = new Vec2(0.4, 0.4);
+    public static readonly VORRATH_SPAWN = new Vec2(2272, 1104);
+    public static readonly VORRATH_SCALE = new Vec2(0.5, 0.5);
     public static readonly VORRATH_HITBOX_HALF_SIZE = new Vec2(72, 104);
     public static readonly VORRATH_VISUAL_OFFSET_Y = 8;
     public static readonly VORRATH_AGGRO_RANGE = 100;
@@ -96,8 +97,8 @@ export default class Level2 extends MBLevel {
     public static readonly VORRATH_LAVA_PILLAR_BOSS_CLEAR_DISTANCE = 5 * 16;
     public static readonly VORRATH_MOVE_SPEED = 60;
     public static readonly VORRATH_ARENA_WALL_LAVA_PILLAR_BASE_POINTS = [
-        new Vec2(2208, 1136),
-        new Vec2(2704, 1136)
+        new Vec2(2544, 1120),
+        new Vec2(2032, 1120)
     ];
     // Edit these x/y points to move the red warning beams and lava pillars.
     // Y = -1 means "snap this pillar to the floor automatically at that x position".
@@ -174,7 +175,7 @@ export default class Level2 extends MBLevel {
         this.dyingAudioKey = Level2.DYING_AUDIO_KEY;
 
         // Level end size and position
-        this.levelEndPosition = new Vec2(134*16, 69*16).mult(this.tilemapScale);
+        this.levelEndPosition = new Vec2(1936, 1088).mult(this.tilemapScale);
         this.levelEndHalfSize = new Vec2(32, 32).mult(this.tilemapScale);
 
     }
@@ -405,8 +406,8 @@ export default class Level2 extends MBLevel {
         super.initializeViewport();
         this.viewport.setZoomLevel(Level2.LEVEL2_ZOOM);
 
-        const worldWidth = 224 * 16 * this.tilemapScale.x;
-        const worldHeight = 80 * 16 * this.tilemapScale.y;
+        const worldWidth = 201 * 16 * this.tilemapScale.x;
+        const worldHeight = 75 * 16 * this.tilemapScale.y;
         this.viewport.setBounds(0, 0, worldWidth, worldHeight);
     }
 
@@ -673,6 +674,8 @@ export default class Level2 extends MBLevel {
 
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
+            case ProgressTargetSceneId.HUB:
+                return HubLevel;
             case ProgressTargetSceneId.LEVEL_1:
                 return Level1;
             case ProgressTargetSceneId.LEVEL_2:

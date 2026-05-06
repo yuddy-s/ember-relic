@@ -58,7 +58,7 @@ export default class HubLevel extends MBLevel {
     private solenPromptLabel!: Label;
     private playerCanInteractWithSolen: boolean = false;
 
-    public static readonly PLAYER_SPAWN = new Vec2(432, 1024);
+    public static readonly PLAYER_SPAWN = new Vec2(256, 864);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 
@@ -78,13 +78,13 @@ export default class HubLevel extends MBLevel {
     public static readonly CAMPFIRE_IMAGE_KEY = "HUB_CAMPFIRE";
     public static readonly CAMPFIRE_IMAGE_PATH = "game_assets/spritesheets/campfire.png";
     public static readonly CAMPFIRE_FRAME_SIZE = new Vec2(36, 48);
-    public static readonly CAMPFIRE_POSITION = new Vec2(808, 1060);
-    public static readonly SOLEN_POSITION = new Vec2(840, 1048);
+    public static readonly CAMPFIRE_POSITION = new Vec2(624, 896);
+    public static readonly SOLEN_POSITION = new Vec2(656, 880);
 
     private static readonly DEFAULT_PORTAL_PLACEMENTS: Array<PortalPlacement> = [
-        { col: 98, row: 91, frame: 2, targetSceneId: ProgressTargetSceneId.LEVEL_2 },
-        { col: 15, row: 20, frame: 1 , targetSceneId: ProgressTargetSceneId.LEVEL_3 },
-        { col: 169, row: 56, frame: 4, targetSceneId: ProgressTargetSceneId.LEVEL_4 }, 
+        { col: 87, row: 81, frame: 2, targetSceneId: ProgressTargetSceneId.LEVEL_2 },
+        { col: 4, row: 10, frame: 1 , targetSceneId: ProgressTargetSceneId.LEVEL_3 },
+        { col: 158, row: 46, frame: 4, targetSceneId: ProgressTargetSceneId.LEVEL_4 }, 
     ];
 
     public static readonly TILEMAP_WIDTH_TILES = 192;

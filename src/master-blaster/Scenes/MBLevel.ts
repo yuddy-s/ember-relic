@@ -2124,7 +2124,7 @@ export default abstract class MBLevel extends Scene {
      * Initializes the particles system used by the player's weapon.
      */
     protected initializeWeaponSystem(): void {
-        this.playerWeaponSystem = new PlayerWeapon(15, Vec2.ZERO, 1000, 5, 0, 15);
+        this.playerWeaponSystem = new PlayerWeapon(200, Vec2.ZERO, 1000, 1, 0, 200);
         this.playerWeaponSystem.initializePool(this, MBLayers.PRIMARY);
     }
 

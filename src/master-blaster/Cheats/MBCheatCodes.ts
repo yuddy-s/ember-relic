@@ -9,6 +9,7 @@ export enum MBCheatCode {
     GODMODE = "GODMODE",
     KILLBOSS = "KILLBOSS",
     HEARTHUNLOCK = "HEARTHUNLOCK",
+    HUBSKIP = "HUB",
     EMBERSKIP1 = "SKIP1",
     EMBERSKIP2 = "SKIP2",
     EMBERSKIP3 = "SKIP3",
@@ -40,6 +41,8 @@ export function parseCheatCode(input: string): MBCheatCode | null {
     const normalizedCode = normalizeCheatCode(input);
 
     switch(normalizedCode){
+        case "HUB":
+            return MBCheatCode.HUBSKIP;
         case "EMBERSKIP1":
             return MBCheatCode.EMBERSKIP1;
         case "EMBERSKIP2":
@@ -88,6 +91,8 @@ export function executeCheatCode(input: string, context: CheatExecutionContext):
             return executeKillBossCheat(context);
         case MBCheatCode.HEARTHUNLOCK:
             return executeHearthUnlockCheat();
+        case MBCheatCode.HUBSKIP:
+            return executeHubSkipCheat(context);
         case MBCheatCode.EMBERSKIP1:
             return executeEmberSkipCheat(ProgressSnapshotId.EMBERSKIP1, code, context);
         case MBCheatCode.EMBERSKIP2:
@@ -172,6 +177,29 @@ function executeHearthUnlockCheat(): CheatExecutionResult {
         success: true,
         message: "Hearth unlocked.",
         code: MBCheatCode.HEARTHUNLOCK
+    };
+}
+
+function executeHubSkipCheat(context: CheatExecutionContext): CheatExecutionResult {
+    const targetScene = context.resolveProgressTargetScene(ProgressTargetSceneId.HUB);
+
+    if(targetScene !== null){
+        context.setPauseMenuOpen(false);
+        context.warpToScene(targetScene, MBProgress.toInitData());
+
+        return {
+            success: true,
+            message: "Teleported to hub.",
+            code: MBCheatCode.HUBSKIP,
+            targetSceneId: ProgressTargetSceneId.HUB
+        };
+    }
+
+    return {
+        success: false,
+        message: "Hub scene is not wired here.",
+        code: MBCheatCode.HUBSKIP,
+        targetSceneId: ProgressTargetSceneId.HUB
     };
 }
 

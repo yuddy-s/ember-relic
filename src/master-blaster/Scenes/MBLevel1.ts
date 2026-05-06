@@ -228,6 +228,8 @@ export default class Level1 extends MBLevel {
     }
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
+            case ProgressTargetSceneId.HUB:
+                return HubLevel;
             case ProgressTargetSceneId.LEVEL_1:
                 return Level1;
             case ProgressTargetSceneId.LEVEL_2:

@@ -9,6 +9,7 @@ import MBLevel, { MBLayers } from "./MBLevel";
 import Level1 from "./MBLevel1";
 import Level2 from "./MBLevel2";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
+import HubLevel from "./HubLevel";
 
 export default class Level3 extends MBLevel {
     private snowBackground!: Sprite;
@@ -150,6 +151,8 @@ export default class Level3 extends MBLevel {
 
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
+            case ProgressTargetSceneId.HUB:
+                return HubLevel;
             case ProgressTargetSceneId.LEVEL_1:
                 return Level1;
             case ProgressTargetSceneId.LEVEL_2:

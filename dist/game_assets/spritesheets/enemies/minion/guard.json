@@ -1,0 +1,57 @@
+{
+  "name": "guard",
+  "spriteSheetImage": "guard.png",
+  "spriteWidth": 128,
+  "spriteHeight": 128,
+  "columns": 5,
+  "rows": 5,
+  "durationType": "time",
+  "animations": [
+    {
+      "name": "IDLE",
+      "repeat": true,
+      "frames": [
+        { "index": 0, "duration": 42 },
+        { "index": 1, "duration": 125 },
+        { "index": 2, "duration": 42 }
+      ]
+    },
+    {
+      "name": "WALK",
+      "repeat": true,
+      "frames": [
+        { "index": 3, "duration": 33 },
+        { "index": 4, "duration": 33 },
+        { "index": 5, "duration": 33 },
+        { "index": 6, "duration": 33 }
+      ]
+    },
+    {
+      "name": "SHIELD_SLAM",
+      "frames": [
+        { "index": 7, "duration": 63 },
+        { "index": 8, "duration": 83 }
+      ]
+    },
+    {
+      "name": "REVERSAL",
+      "frames": [
+        { "index": 13, "duration": 271 }
+      ]
+    },
+    {
+      "name": "CHARGE",
+      "frames": [
+        { "index": 14, "duration": 42 },
+        { "index": 15, "duration": 33 },
+        { "index": 16, "duration": 33 },
+        { "index": 17, "duration": 33 },
+        { "index": 18, "duration": 33 },
+        { "index": 19, "duration": 33 },
+        { "index": 20, "duration": 33 },
+        { "index": 21, "duration": 33 },
+        { "index": 22, "duration": 42 }
+      ]
+    }
+  ]
+}

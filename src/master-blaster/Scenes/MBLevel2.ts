@@ -44,14 +44,20 @@ export default class Level2 extends MBLevel {
     private healthBuffCarrierIcon: Sprite | null = null;
     private healthBuffPickupPromptPanel!: Rect;
     private healthBuffPickupPromptLabel!: Label;
+    private shieldPickupSprite: Sprite | null = null;
+    private shieldPickupPromptPanel!: Rect;
+    private shieldPickupPromptLabel!: Label;
     private level2Boss!: Level2Boss;
     private level2BossSprite!: MBAnimatedSprite;
     private bossDefeatVignetteTimer: number = 0;
     private bossDefeatVignetteDelayStarted: boolean = false;
     private furCoatRewardShown: boolean = false;
     private furCoatGrantedFromBoss: boolean = false;
+    private revivalTotemRewardShown: boolean = false;
+    private revivalTotemGrantedFromBoss: boolean = false;
     private healthBuffRingDropped: boolean = false;
     private playerCanPickUpHealthBuff: boolean = false;
+    private playerCanPickUpShield: boolean = false;
     private level2BossProgressRecorded: boolean = false;
 
     // new Vec2(1536, 752) 2600, 1050 is testing boss coord spawn
@@ -77,6 +83,9 @@ export default class Level2 extends MBLevel {
     public static readonly HEALTH_BUFF_SLIME_ICON_SCALE = new Vec2(0.22, 0.22);
     public static readonly HEALTH_BUFF_SLIME_ICON_ALPHA = 0.65;
     public static readonly HEALTH_BUFF_PICKUP_HALF_SIZE = new Vec2(24, 24);
+    public static readonly SHIELD_PICKUP_POSITION = new Vec2(1408, 1104);
+    public static readonly SHIELD_PICKUP_SCALE = new Vec2(0.24, 0.24);
+    public static readonly SHIELD_PICKUP_HALF_SIZE = new Vec2(24, 24);
 
     public static readonly VORRATH_SPRITE_KEY = "VORRATH_SPRITE_KEY";
     public static readonly VORRATH_SPRITE_PATH = "game_assets/spritesheets/enemies/bosses/vorrath.json";
@@ -85,7 +94,7 @@ export default class Level2 extends MBLevel {
     public static readonly LAVA_PILLAR_KEY = "LAVA_PILLAR_KEY";
     public static readonly LAVA_PILLAR_PATH = "game_assets/art/lava-pillar.png";
     public static readonly VORRATH_SPAWN = new Vec2(2272, 1104);
-    public static readonly VORRATH_SCALE = new Vec2(0.5, 0.5);
+    public static readonly VORRATH_SCALE = new Vec2(0.45, 0.45);
     public static readonly VORRATH_HITBOX_HALF_SIZE = new Vec2(72, 104);
     public static readonly VORRATH_VISUAL_OFFSET_Y = 8;
     public static readonly VORRATH_AGGRO_RANGE = 100;
@@ -207,6 +216,8 @@ export default class Level2 extends MBLevel {
         this.load.image(MBLevel.SHATTERDIVE_ICON_KEY, MBLevel.SHATTERDIVE_ICON_PATH);
         this.load.image(MBLevel.HEALTH_BUFF_ICON_KEY, MBLevel.HEALTH_BUFF_ICON_PATH);
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
+        this.load.image(MBLevel.SHIELD_ICON_KEY, MBLevel.SHIELD_ICON_PATH);
+        this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
         // Audio and music
         this.load.audio(this.levelMusicKey, Level2.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level2.JUMP_AUDIO_PATH);
@@ -223,11 +234,14 @@ export default class Level2 extends MBLevel {
         this.initializeWretches();
         this.initializeBats();
         this.initializeHealthBuffSlime();
+        this.initializeShieldPickup();
         this.travelPortalDestination = HubLevel;
         this.bossDefeatVignetteTimer = 0;
         this.bossDefeatVignetteDelayStarted = false;
         this.furCoatRewardShown = false;
         this.furCoatGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.FUR_COAT);
+        this.revivalTotemRewardShown = false;
+        this.revivalTotemGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.REVIVAL_TOTEM_L1);
         this.level2BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level2Boss.id);
     }
 
@@ -235,6 +249,7 @@ export default class Level2 extends MBLevel {
         super.updateScene(deltaT);
         this.updateHealthBuffSlimeVisual();
         this.updateHealthBuffPickupPrompt();
+        this.updateShieldPickupPrompt();
 
         if(
             this.playerCanPickUpHealthBuff &&
@@ -244,6 +259,16 @@ export default class Level2 extends MBLevel {
             Input.isKeyJustPressed("e")
         ){
             this.collectDroppedHealthBuffRing();
+        }
+
+        if(
+            this.playerCanPickUpShield &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectShieldPickup();
         }
 
         this.updateBossRewardState();
@@ -325,6 +350,23 @@ export default class Level2 extends MBLevel {
         this.healthBuffCarrierIcon.scale.copy(Level2.HEALTH_BUFF_SLIME_ICON_SCALE);
         this.healthBuffCarrierIcon.alpha = Level2.HEALTH_BUFF_SLIME_ICON_ALPHA;
         this.updateHealthBuffSlimeVisual();
+    }
+
+    protected initializeShieldPickup(): void {
+        this.playerCanPickUpShield = false;
+
+        if(this.shieldPickupSprite !== null){
+            this.shieldPickupSprite.destroy();
+            this.shieldPickupSprite = null;
+        }
+
+        if(MBProgress.hasUpgrade(UpgradeId.SHIELD)){
+            return;
+        }
+
+        this.shieldPickupSprite = this.add.sprite(MBLevel.SHIELD_ICON_KEY, MBLayers.PRIMARY);
+        this.shieldPickupSprite.position.copy(Level2.SHIELD_PICKUP_POSITION);
+        this.shieldPickupSprite.scale.copy(Level2.SHIELD_PICKUP_SCALE);
     }
 
     protected spawnWretch(spawn: Vec2): MBAnimatedSprite {
@@ -466,6 +508,24 @@ export default class Level2 extends MBLevel {
         this.healthBuffPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
         this.healthBuffPickupPromptLabel.visible = false;
 
+        this.shieldPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(214, 40)
+        });
+        this.shieldPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.shieldPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.shieldPickupPromptPanel.visible = false;
+
+        this.shieldPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick up Shield"
+        });
+        this.shieldPickupPromptLabel.size.set(240, 24);
+        this.shieldPickupPromptLabel.font = "PixelSimple";
+        this.shieldPickupPromptLabel.fontSize = 18;
+        this.shieldPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.shieldPickupPromptLabel.visible = false;
+
         this.updateVisibilityVignettes(1);
     }
 
@@ -563,6 +623,47 @@ export default class Level2 extends MBLevel {
 
         this.grantUpgrade(UpgradeId.HEALTH_BUFF);
         this.showUpgradeRewardPopup(UpgradeId.HEALTH_BUFF);
+    }
+
+    protected updateShieldPickupPrompt(): void {
+        if(
+            this.shieldPickupSprite === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpShield = false;
+            this.shieldPickupPromptPanel.visible = false;
+            this.shieldPickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.shieldPickupSprite.position.clone(),
+            Level2.SHIELD_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpShield = playerAABB.overlapArea(pickupAABB) > 0;
+        this.shieldPickupPromptPanel.visible = this.playerCanPickUpShield;
+        this.shieldPickupPromptLabel.visible = this.playerCanPickUpShield;
+    }
+
+    protected collectShieldPickup(): void {
+        if(this.shieldPickupSprite === null){
+            return;
+        }
+
+        this.playerCanPickUpShield = false;
+        this.shieldPickupPromptPanel.visible = false;
+        this.shieldPickupPromptLabel.visible = false;
+        this.shieldPickupSprite.destroy();
+        this.shieldPickupSprite = null;
+
+        this.grantUpgrade(UpgradeId.SHIELD);
+        this.showUpgradeRewardPopup(UpgradeId.SHIELD);
     }
 
     public getLevel2Boss(): Level2Boss {
@@ -691,6 +792,23 @@ export default class Level2 extends MBLevel {
         return HubLevel;
     }
 
+    protected showRevivalTotemBossReward(): void {
+        if(
+            this.revivalTotemGrantedFromBoss ||
+            this.revivalTotemRewardShown ||
+            MBProgress.hasUpgrade(UpgradeId.REVIVAL_TOTEM_L1)
+        ){
+            this.revivalTotemGrantedFromBoss = true;
+            return;
+        }
+
+        this.revivalTotemRewardShown = true;
+        this.showUpgradeRewardPopup(UpgradeId.REVIVAL_TOTEM_L1, () => {
+            this.grantUpgrade(UpgradeId.REVIVAL_TOTEM_L1);
+            this.revivalTotemGrantedFromBoss = true;
+        });
+    }
+
     protected updateBossRewardState(): void {
         if(this.level2Boss === undefined || !this.level2Boss.isDefeated()){
             return;
@@ -701,13 +819,18 @@ export default class Level2 extends MBLevel {
             this.level2BossProgressRecorded = true;
         }
 
-        if(this.furCoatGrantedFromBoss || this.furCoatRewardShown || MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
-            this.furCoatGrantedFromBoss = true;
+        const dyingStillPlaying = this.level2BossSprite !== undefined && this.level2BossSprite.animation.isPlaying(VorrathAnimations.DYING);
+        if(dyingStillPlaying){
             return;
         }
 
-        const dyingStillPlaying = this.level2BossSprite !== undefined && this.level2BossSprite.animation.isPlaying(VorrathAnimations.DYING);
-        if(dyingStillPlaying){
+        if(this.furCoatGrantedFromBoss || MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
+            this.furCoatGrantedFromBoss = true;
+            this.showRevivalTotemBossReward();
+            return;
+        }
+
+        if(this.furCoatRewardShown){
             return;
         }
 
@@ -715,6 +838,7 @@ export default class Level2 extends MBLevel {
         this.showUpgradeRewardPopup(UpgradeId.FUR_COAT, () => {
             this.grantUpgrade(UpgradeId.FUR_COAT);
             this.furCoatGrantedFromBoss = true;
+            this.showRevivalTotemBossReward();
         });
     }
 }

@@ -24,6 +24,7 @@ import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 
 type DamageModifyingScene = {
+    isPlayerDamageDisabled?: () => boolean;
     modifyIncomingPlayerDamage?: (amount: number, damageType: string) => number;
 };
 
@@ -73,6 +74,7 @@ export const PlayerStates = {
 export default class PlayerController extends StateMachineAI {
     public readonly MAX_SPEED: number = 240;
     public readonly MIN_SPEED: number = 130;
+    public readonly UPGRADED_BOOTS_SPEED_BONUS: number = 40;
     public readonly DASH_SPEED: number = 500;
     public readonly FLY_SPEED: number = 300;
     public readonly WALL_JUMP_X_SPEED: number = 220;
@@ -121,7 +123,7 @@ export default class PlayerController extends StateMachineAI {
 
         this.tilemap = this.owner.getScene().getTilemap(options.tilemap) as OrthogonalTilemap;
         this.slidingTilemap = this.owner.getScene().getTilemap("Sliding") as OrthogonalTilemap | null;
-        this.speed = this.MIN_SPEED;
+        this.speed = this.getBaseMoveSpeed();
         this.velocity = Vec2.ZERO;
 
         this.dashTimer = 0;
@@ -309,6 +311,12 @@ export default class PlayerController extends StateMachineAI {
         return MBProgress.hasUpgrade(UpgradeId.ICE_PICK);
     }
 
+    public getBaseMoveSpeed(): number {
+        return MBProgress.hasUpgrade(UpgradeId.UPGRADED_BOOTS)
+            ? this.MIN_SPEED + this.UPGRADED_BOOTS_SPEED_BONUS
+            : this.MIN_SPEED;
+    }
+
     public tryStartWallLatch(): boolean {
         if(!this.hasIcePick() || this.owner.onGround || this.isDashing() || this.wallLatchCooldownTimer > 0){
             return false;
@@ -457,13 +465,25 @@ export default class PlayerController extends StateMachineAI {
     }
 
     public applyDamage(amount: number, knockback?: Vec2, damageType: string = "generic"): boolean {
+        if(!this.canTakeDamage()){
+            return false;
+        }
+
         const scene = this.owner.getScene() as DamageModifyingScene;
+        if(scene.isPlayerDamageDisabled !== undefined && scene.isPlayerDamageDisabled()){
+            return false;
+        }
+
         const modifiedDamage = scene.modifyIncomingPlayerDamage !== undefined
             ? scene.modifyIncomingPlayerDamage(amount, damageType)
             : amount;
         const resolvedDamage = Math.max(0, Math.ceil(modifiedDamage));
 
-        if(resolvedDamage <= 0 || !this.canTakeDamage()){
+        if(resolvedDamage <= 0){
+            if(amount > 0 && knockback !== undefined && this.health > 0){
+                this.velocity = knockback.clone();
+                this.changeState(PlayerStates.TAKINGDAMAGE);
+            }
             return false;
         }
 

@@ -7,7 +7,7 @@ export default class Idle extends PlayerState {
 
 	public onEnter(options: Record<string, any>): void {
         this.owner.animation.play(PlayerAnimations.IDLE, true);
-		this.parent.speed = this.parent.MIN_SPEED;
+		this.parent.speed = this.parent.getBaseMoveSpeed();
         if(!options?.preserveMomentum){
             if(!this.parent.isOnIce()){
                 this.parent.velocity.x = 0;

@@ -350,6 +350,16 @@ export class MBProgressStore {
         return changed;
     }
 
+    public consumeUpgrade(upgradeId: UpgradeId): boolean {
+        if(!this.state.ownedUpgrades.has(upgradeId)){
+            return false;
+        }
+
+        this.state.ownedUpgrades.delete(upgradeId);
+        this.state.acquisitionOrder = this.state.acquisitionOrder.filter(id => id !== upgradeId);
+        return true;
+    }
+
     public hasDefeatedBoss(bossId: BossId): boolean {
         return this.state.defeatedBosses.has(bossId);
     }

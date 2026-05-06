@@ -22,7 +22,7 @@ import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
 import Timer from "../../Wolfie2D/Timing/Timer";
 import Color from "../../Wolfie2D/Utils/Color";
 import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
-import PlayerController, { PlayerAnimations, PlayerTweens } from "../Player/PlayerController";
+import PlayerController, { PlayerAnimations, PlayerStates, PlayerTweens } from "../Player/PlayerController";
 import PlayerWeapon from "../Player/PlayerWeapon";
 
 import { MBEvents } from "../MBEvents";
@@ -87,6 +87,8 @@ export default abstract class MBLevel extends Scene {
     private healthLabel!: Label;
 	private healthBar!: Label;
 	private healthBarBg!: Label;
+    private shieldBar!: Label;
+    private shieldBarBg!: Label;
     private bossNameLabel!: Label;
     private bossHealthBar!: Label;
     private bossHealthBarBg!: Label;
@@ -105,6 +107,10 @@ export default abstract class MBLevel extends Scene {
     private upgradeRewardElements: Array<CanvasNode>;
     private upgradeRewardOpen: boolean;
     private upgradeRewardOnConfirm: (() => void) | null;
+    private revivalFlash!: Rect;
+    private revivalIcon!: Sprite;
+    private revivalEffectTimer: number;
+    private revivalInProgress: boolean;
     private dialogueOverlay!: Rect;
     private dialoguePanel!: Rect;
     private dialogueSpeakerLabel!: Label;
@@ -162,6 +168,7 @@ export default abstract class MBLevel extends Scene {
     /** Out-of-bounds kill floor for instant death */
     protected deathY!: number;
     protected deathTriggered: boolean;
+    protected shieldCharges: number;
     protected bossDamageCooldownTimer: number;
     protected bossDamageCooldownDuration: number;
     protected damagingTileDamage: number;
@@ -209,7 +216,12 @@ export default abstract class MBLevel extends Scene {
     protected static readonly HEALTH_BUFF_ICON_KEY = "UPGRADE_ICON_HEALTH_BUFF";
     protected static readonly HEALTH_BUFF_ICON_PATH = "game_assets/art/upgrades/hpUp.png";
     protected static readonly UPGRADED_SWORD_ICON_KEY = "UPGRADE_ICON_UPGRADED_SWORD";
-    protected static readonly UPGRADED_SWORD_ICON_PATH = "game_assets/art/upgrades/upgradeSword.png";
+    protected static readonly UPGRADED_SWORD_ICON_PATH = "game_assets/art/upgrades/dmgUp.png";
+    protected static readonly SHIELD_ICON_KEY = "UPGRADE_ICON_SHIELD";
+    protected static readonly SHIELD_ICON_PATH = "game_assets/art/upgrades/shield.png";
+    protected static readonly SHIELD_BROKEN_ICON_KEY = "UPGRADE_ICON_SHIELD_BROKEN";
+    protected static readonly SHIELD_BROKEN_ICON_PATH = "game_assets/art/upgrades/shieldBroken.png";
+
     
     // HUD TUNING"
     // Change these values to adjust the in-game health bar and quick-slot row.
@@ -218,6 +230,8 @@ export default abstract class MBLevel extends Scene {
         healthBarTop: 16,
         healthBarWidth: 300,
         healthBarHeight: 16,
+        shieldBarGap: 10,
+        shieldBarWidth: 120,
         inventoryOffsetY: 30,
         slotSize: 20,
         slotGap: 35,
@@ -254,8 +268,15 @@ export default abstract class MBLevel extends Scene {
     protected static readonly HEALTH_BAR_FILL_COLOR = new Color(88, 35, 33, 1);
     protected static readonly HEALTH_BAR_TRACK_COLOR = new Color(38, 20, 18, 0.95);
     protected static readonly HEALTH_BAR_BORDER_COLOR = new Color(183, 146, 82, 1);
+    protected static readonly SHIELD_BAR_FILL_COLOR = new Color(126, 132, 142, 1);
+    protected static readonly SHIELD_BAR_TRACK_COLOR = new Color(28, 30, 35, 0.95);
+    protected static readonly SHIELD_MAX_CHARGES = 5;
+    protected static readonly SHIELD_BLOCK_INVULNERABILITY = 0.8;
     protected static readonly PLAYER_BASE_MAX_HEALTH = 100;
     protected static readonly HEALTH_BUFF_MAX_HEALTH_BONUS = 20;
+    protected static readonly REVIVAL_EFFECT_DURATION = 1.35;
+    protected static readonly REVIVAL_FLASH_DURATION = 0.35;
+    protected static readonly REVIVAL_INVULNERABILITY = 1.5;
 
     // PAUSE TUNING
     // Change these values to adjust the pause menu layout without digging through UI creation code.
@@ -319,6 +340,8 @@ export default abstract class MBLevel extends Scene {
         this.upgradeRewardElements = new Array();
         this.upgradeRewardOpen = false;
         this.upgradeRewardOnConfirm = null;
+        this.revivalEffectTimer = 0;
+        this.revivalInProgress = false;
         this.dialogueLines = new Array();
         this.dialogueElements = new Array();
         this.dialogueOpen = false;
@@ -329,6 +352,7 @@ export default abstract class MBLevel extends Scene {
         this.boss = undefined;
         this.bossDamageCooldownTimer = 0;
         this.bossDamageCooldownDuration = 0.2;
+        this.shieldCharges = 0;
         this.damagingTileDamage = 5;
         this.damagingTileKnockbackSpeed = 170;
         this.damageableEnemies = new Array();
@@ -347,6 +371,8 @@ export default abstract class MBLevel extends Scene {
         this.playerCanInteractWithLevelEnd = false;
         this.levelEndTransitionStarted = false;
         this.deathTransitionStarted = false;
+        this.revivalEffectTimer = 0;
+        this.revivalInProgress = false;
 
         // Initialize the layers
         this.initLayers();
@@ -362,6 +388,7 @@ export default abstract class MBLevel extends Scene {
 
         // Initialize the player 
         this.initializePlayer(this.playerSpriteKey);
+        this.initializeShieldState();
 
         // Initialize the level boss, if this scene has one
         this.initializeBoss();
@@ -424,8 +451,9 @@ export default abstract class MBLevel extends Scene {
 
         this.refreshBossUI();
         this.updateLevelEndPrompt();
+        this.updateRevivalEffect(deltaT);
 
-        if(!this.pauseMenuOpen && !this.deathTransitionStarted){
+        if(!this.pauseMenuOpen && !this.deathTransitionStarted && !this.revivalInProgress){
             this.handleDamagingTileContact();
             this.handleOutOfBoundsDeath();
         }
@@ -436,6 +464,10 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected handlePauseInput(): void {
+        if(this.revivalInProgress){
+            return;
+        }
+
         if(this.dialogueOpen){
             if(Input.isKeyJustPressed("enter") || Input.isMouseJustPressed(0)){
                 this.advanceDialogue();
@@ -659,7 +691,9 @@ export default abstract class MBLevel extends Scene {
                 break;
             }
             case MBEvents.PLAYER_DEAD: {
-                this.startDeathTransition();
+                if(!this.tryStartRevival()){
+                    this.startDeathTransition();
+                }
                 break;
             }
             case MBEvents.PLAYER_RESPAWN: {
@@ -777,6 +811,156 @@ export default abstract class MBLevel extends Scene {
         this.levelTransitionScreen.tweens.play("fadeIn");
     }
 
+    protected tryStartRevival(): boolean {
+        if(this.revivalInProgress || this.deathTransitionStarted || this.player === undefined){
+            return false;
+        }
+
+        const controller = this.player.ai as PlayerController | undefined;
+        if(controller === undefined){
+            return false;
+        }
+
+        const revivalTotem = this.consumeAvailableRevivalTotem();
+        if(revivalTotem === null){
+            return false;
+        }
+
+        this.revivalInProgress = true;
+        this.revivalEffectTimer = 0;
+        this.playerCanInteractWithLevelEnd = false;
+        Input.disableInput();
+        this.setPauseMenuOpen(false);
+
+        if(this.levelEndPromptPanel !== undefined){
+            this.levelEndPromptPanel.visible = false;
+        }
+        if(this.levelEndPromptLabel !== undefined){
+            this.levelEndPromptLabel.visible = false;
+        }
+
+        const reviveAtSpawn = this.deathTriggered;
+        this.deathTriggered = false;
+        this.restorePlayerAfterRevival(controller, reviveAtSpawn);
+        this.startRevivalEffect();
+
+        return true;
+    }
+
+    protected consumeAvailableRevivalTotem(): UpgradeId | null {
+        if(MBProgress.consumeUpgrade(UpgradeId.REVIVAL_TOTEM_L1)){
+            return UpgradeId.REVIVAL_TOTEM_L1;
+        }
+
+        if(MBProgress.consumeUpgrade(UpgradeId.REVIVAL_TOTEM_L3)){
+            return UpgradeId.REVIVAL_TOTEM_L3;
+        }
+
+        return null;
+    }
+
+    protected restorePlayerAfterRevival(controller: PlayerController, reviveAtSpawn: boolean): void {
+        this.player.visible = true;
+        this.player.alpha = 1;
+        this.player.rotation = 0;
+        this.player.position.copy(reviveAtSpawn ? this.playerSpawn : this.player.position);
+        this.player.unfreeze();
+        if(this.player.hasPhysics){
+            this.player.enablePhysics();
+        }
+        this.player.setAIActive(true, {});
+
+        controller.velocity = Vec2.ZERO;
+        controller.health = controller.maxHealth;
+        controller.grantInvulnerability(MBLevel.REVIVAL_INVULNERABILITY);
+        controller.changeState(PlayerStates.IDLE);
+
+        this.restoreShieldCharges();
+    }
+
+    protected restoreShieldCharges(): void {
+        this.shieldCharges = MBProgress.hasUpgrade(UpgradeId.SHIELD) ? MBLevel.SHIELD_MAX_CHARGES : 0;
+        this.refreshShieldUI();
+        this.refreshInventoryUI();
+    }
+
+    protected startRevivalEffect(): void {
+        if(this.revivalFlash !== undefined){
+            this.revivalFlash.visible = true;
+            this.revivalFlash.alpha = 1;
+        }
+
+        if(this.revivalIcon !== undefined){
+            this.revivalIcon.visible = true;
+            this.revivalIcon.alpha = 0;
+        }
+
+        if(this.player !== undefined){
+            this.player.freeze();
+            if(this.player.hasPhysics){
+                this.player.disablePhysics();
+            }
+            this.player.setAIActive(false, {});
+        }
+    }
+
+    protected updateRevivalEffect(deltaT: number): void {
+        if(!this.revivalInProgress){
+            return;
+        }
+
+        this.revivalEffectTimer += deltaT;
+        const effectProgress = Math.min(1, this.revivalEffectTimer / MBLevel.REVIVAL_EFFECT_DURATION);
+        const flashProgress = Math.min(1, this.revivalEffectTimer / MBLevel.REVIVAL_FLASH_DURATION);
+
+        if(this.revivalFlash !== undefined){
+            this.revivalFlash.alpha = 1 - flashProgress;
+        }
+
+        if(this.revivalIcon !== undefined){
+            const fadePortion = 0.35;
+            let iconAlpha = 1;
+            if(effectProgress < fadePortion){
+                iconAlpha = effectProgress / fadePortion;
+            } else if(effectProgress > 1 - fadePortion){
+                iconAlpha = (1 - effectProgress) / fadePortion;
+            }
+
+            this.revivalIcon.alpha = Math.max(0, Math.min(1, iconAlpha));
+            const pulse = 0.68 + Math.sin(effectProgress * Math.PI) * 0.08;
+            this.revivalIcon.scale.set(pulse, pulse);
+        }
+
+        if(this.revivalEffectTimer >= MBLevel.REVIVAL_EFFECT_DURATION){
+            this.completeRevivalEffect();
+        }
+    }
+
+    protected completeRevivalEffect(): void {
+        this.revivalInProgress = false;
+        this.revivalEffectTimer = 0;
+
+        if(this.revivalFlash !== undefined){
+            this.revivalFlash.visible = false;
+            this.revivalFlash.alpha = 0;
+        }
+
+        if(this.revivalIcon !== undefined){
+            this.revivalIcon.visible = false;
+            this.revivalIcon.alpha = 0;
+        }
+
+        if(this.player !== undefined){
+            this.player.unfreeze();
+            if(this.player.hasPhysics){
+                this.player.enablePhysics();
+            }
+            this.player.setAIActive(true, {});
+        }
+
+        Input.enableInput();
+    }
+
     protected startDeathTransition(): void {
         if(this.deathTransitionStarted){
             return;
@@ -884,7 +1068,36 @@ export default abstract class MBLevel extends Scene {
     }
 
     public modifyIncomingPlayerDamage(amount: number, damageType: string = "generic"): number {
+        if(this.consumeShieldCharge(amount, damageType)){
+            return 0;
+        }
+
         return amount;
+    }
+
+    public isPlayerDamageDisabled(): boolean {
+        return MBProgress.isGodModeEnabled();
+    }
+
+    protected initializeShieldState(): void {
+        this.shieldCharges = MBProgress.hasUpgrade(UpgradeId.SHIELD) ? MBLevel.SHIELD_MAX_CHARGES : 0;
+    }
+
+    protected consumeShieldCharge(amount: number, _damageType: string = "generic"): boolean {
+        if(amount <= 0 || !MBProgress.hasUpgrade(UpgradeId.SHIELD) || this.shieldCharges <= 0){
+            return false;
+        }
+
+        this.shieldCharges = Math.max(0, this.shieldCharges - 1);
+
+        if(this.player !== undefined){
+            const controller = this.player.ai as PlayerController | undefined;
+            controller?.grantInvulnerability(MBLevel.SHIELD_BLOCK_INVULNERABILITY);
+        }
+
+        this.refreshShieldUI();
+        this.refreshInventoryUI();
+        return true;
     }
 
     protected applyFurCoatMountainDamageReduction(amount: number, damageType: string = "generic", attackDamageMultiplier: number = 0.35): number {
@@ -937,6 +1150,24 @@ export default abstract class MBLevel extends Scene {
         this.healthBarBg.size.set(healthBarWidth, healthBarHeight);
         this.healthBarBg.position.set(healthBarCenterX, healthBarCenterY);
         this.healthBar.position.y = healthBarCenterY;
+        this.updateShieldBarBounds(healthBarWidth, healthBarHeight);
+    }
+
+    protected updateShieldBarBounds(healthBarWidth: number, healthBarHeight: number): void {
+        if(this.shieldBarBg === undefined || this.shieldBar === undefined){
+            return;
+        }
+
+        const hud = MBLevel.HUD_TUNING;
+        const zoom = this.getViewScale();
+        const shieldBarWidth = hud.shieldBarWidth;
+        const shieldBarCenterX = (hud.left + healthBarWidth + hud.shieldBarGap + shieldBarWidth / 2) / zoom;
+        const shieldBarCenterY = (hud.healthBarTop + healthBarHeight / 2) / zoom;
+
+        this.shieldBarBg.size.set(shieldBarWidth, healthBarHeight);
+        this.shieldBarBg.position.set(shieldBarCenterX, shieldBarCenterY);
+        this.shieldBar.position.y = shieldBarCenterY;
+        this.refreshShieldUI();
     }
 
     protected getResolvedPlayerMaxHealth(): number {
@@ -978,13 +1209,53 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected applyGrantedUpgradeEffects(upgradeId: UpgradeId): void {
+        const controller = this.player !== undefined
+            ? this.player.ai as PlayerController | undefined
+            : undefined;
+
         switch(upgradeId){
             case UpgradeId.HEALTH_BUFF:
                 this.applyPlayerProgressEffects(false, upgradeId);
                 break;
+            case UpgradeId.UPGRADED_BOOTS:
+                if(controller !== undefined){
+                    controller.speed = controller.getBaseMoveSpeed();
+                }
+                break;
+            case UpgradeId.SHIELD:
+                this.shieldCharges = MBLevel.SHIELD_MAX_CHARGES;
+                this.refreshShieldUI();
+                break;
             default:
                 break;
         }
+    }
+
+    protected refreshShieldUI(): void {
+        if(this.shieldBarBg === undefined || this.shieldBar === undefined){
+            return;
+        }
+
+        const hasShield = MBProgress.hasUpgrade(UpgradeId.SHIELD);
+        this.shieldBarBg.visible = hasShield;
+        this.shieldBar.visible = hasShield && this.shieldCharges > 0;
+
+        if(!hasShield){
+            return;
+        }
+
+        const frameInset = 2;
+        const fillHeight = Math.max(this.shieldBarBg.size.y - frameInset, 2);
+        const maxFillWidth = Math.max(this.shieldBarBg.size.x - frameInset, 1);
+        const fillWidth = (maxFillWidth * Math.max(0, Math.min(this.shieldCharges, MBLevel.SHIELD_MAX_CHARGES))) / MBLevel.SHIELD_MAX_CHARGES;
+        const zoom = this.getViewScale();
+        const fillLeft = this.shieldBarBg.position.x - maxFillWidth / (2 * zoom);
+
+        this.shieldBar.size.set(fillWidth, fillHeight);
+        this.shieldBar.position.set(fillLeft + fillWidth / (2 * zoom), this.shieldBarBg.position.y);
+        this.shieldBar.backgroundColor = MBLevel.SHIELD_BAR_FILL_COLOR;
+        this.shieldBarBg.backgroundColor = MBLevel.SHIELD_BAR_TRACK_COLOR;
+        this.shieldBarBg.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
     }
 
     protected refreshPlayerHealthUIFromController(): void {
@@ -1198,6 +1469,8 @@ export default abstract class MBLevel extends Scene {
                 return MBLevel.HEALTH_BUFF_ICON_KEY;
             case UpgradeId.UPGRADED_SWORD:
                 return MBLevel.UPGRADED_SWORD_ICON_KEY;
+            case UpgradeId.SHIELD:
+                return this.shieldCharges > 0 ? MBLevel.SHIELD_ICON_KEY : MBLevel.SHIELD_BROKEN_ICON_KEY;
             default:
                 return null;
         }
@@ -1493,6 +1766,10 @@ export default abstract class MBLevel extends Scene {
             return;
         }
 
+        if(this.isPlayerDamageDisabled()){
+            return;
+        }
+
         if(this.player.position.y > this.deathY){
             this.deathTriggered = true;
             this.emitter.fireEvent(MBEvents.PLAYER_DEAD);
@@ -1664,6 +1941,26 @@ export default abstract class MBLevel extends Scene {
         this.healthBar.backgroundColor = MBLevel.HEALTH_BAR_FILL_COLOR;
         this.healthBar.borderRadius = hud.healthBarRadius;
 
+        const shieldBarCenterX = toUIScreenX(hudLeft + hpBarWidth + hud.shieldBarGap + hud.shieldBarWidth / 2);
+        this.shieldBarBg = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: new Vec2(shieldBarCenterX, hpBarCenterY),
+            text: ""
+        });
+        this.shieldBarBg.size = new Vec2(hud.shieldBarWidth, hpBarHeight);
+        this.shieldBarBg.backgroundColor = MBLevel.SHIELD_BAR_TRACK_COLOR;
+        this.shieldBarBg.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.shieldBarBg.borderRadius = hud.healthBarRadius;
+        this.shieldBarBg.visible = false;
+
+        this.shieldBar = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: new Vec2(shieldBarCenterX, hpBarCenterY),
+            text: ""
+        });
+        this.shieldBar.size = new Vec2(hud.shieldBarWidth - 2, hpBarHeight - 2);
+        this.shieldBar.backgroundColor = MBLevel.SHIELD_BAR_FILL_COLOR;
+        this.shieldBar.borderRadius = hud.healthBarRadius;
+        this.shieldBar.visible = false;
+
         for(let i = 0; i < 5; i++){
             const slotCenterX = toUIScreenX(hudLeft + slotSize / 2 + i * (slotSize + slotGap));
             const slot = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
@@ -1820,6 +2117,20 @@ export default abstract class MBLevel extends Scene {
                 }
             ]
         });
+
+        this.revivalFlash = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: viewCenter.clone(),
+            size: viewSize.clone()
+        });
+        this.revivalFlash.color = Color.WHITE;
+        this.revivalFlash.alpha = 0;
+        this.revivalFlash.visible = false;
+
+        this.revivalIcon = this.add.sprite(MBLevel.REVIVAL_ICON_KEY, MBLayers.UI);
+        this.revivalIcon.position.copy(viewCenter);
+        this.revivalIcon.scale.set(0.68, 0.68);
+        this.revivalIcon.alpha = 0;
+        this.revivalIcon.visible = false;
 
         this.initializeUpgradeRewardUI();
         this.initializeDialogueUI();
@@ -2237,7 +2548,7 @@ export default abstract class MBLevel extends Scene {
     }
 
     protected getPlayerWeaponDamage(): number {
-        return 1;
+        return MBProgress.hasUpgrade(UpgradeId.UPGRADED_SWORD) ? 2 : 1;
     }
 
     /**

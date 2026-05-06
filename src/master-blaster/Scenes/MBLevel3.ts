@@ -1,10 +1,16 @@
 import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
 import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
+import Input from "../../Wolfie2D/Input/Input";
+import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
+import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
+import Label from "../../Wolfie2D/Nodes/UIElements/Label";
+import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
+import Color from "../../Wolfie2D/Utils/Color";
 import MainMenu from "./MainMenu";
 import MBLevel, { MBLayers } from "./MBLevel";
 import Level1 from "./MBLevel1";
@@ -29,6 +35,18 @@ export default class Level3 extends MBLevel {
     private doubleJumpRewardShown: boolean = false;
     private doubleJumpGrantedFromBoss: boolean = false;
     private coldDamageTimer: number = 0;
+    private icePickPickupSprite: Sprite | null = null;
+    private icePickPickupPromptPanel!: Rect;
+    private icePickPickupPromptLabel!: Label;
+    private playerCanPickUpIcePick: boolean = false;
+    private damageUpPickupSprite: Sprite | null = null;
+    private damageUpPickupPromptPanel!: Rect;
+    private damageUpPickupPromptLabel!: Label;
+    private playerCanPickUpDamageUp: boolean = false;
+    private speedUpPickupSprite: Sprite | null = null;
+    private speedUpPickupPromptPanel!: Rect;
+    private speedUpPickupPromptLabel!: Label;
+    private playerCanPickUpSpeedUp: boolean = false;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     public static readonly PLAYER_SPAWN = new Vec2(112, 2700);
@@ -55,6 +73,15 @@ export default class Level3 extends MBLevel {
 
     public static readonly COLD_DAMAGE_INTERVAL = 1;
     public static readonly COLD_DAMAGE_AMOUNT = 10;
+    public static readonly ICE_PICK_PICKUP_POSITION = new Vec2(224, 3104);
+    public static readonly ICE_PICK_PICKUP_SCALE = new Vec2(0.24, 0.24);
+    public static readonly ICE_PICK_PICKUP_HALF_SIZE = new Vec2(24, 24);
+    public static readonly DAMAGE_UP_PICKUP_POSITION = new Vec2(3232, 1632);
+    public static readonly DAMAGE_UP_PICKUP_SCALE = new Vec2(0.24, 0.24);
+    public static readonly DAMAGE_UP_PICKUP_HALF_SIZE = new Vec2(24, 24);
+    public static readonly SPEED_UP_PICKUP_POSITION = new Vec2(1568, 1488);
+    public static readonly SPEED_UP_PICKUP_SCALE = new Vec2(0.24, 0.24);
+    public static readonly SPEED_UP_PICKUP_HALF_SIZE = new Vec2(24, 24);
 
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
@@ -134,7 +161,9 @@ export default class Level3 extends MBLevel {
         this.load.image(MBLevel.SHATTERDIVE_ICON_KEY, MBLevel.SHATTERDIVE_ICON_PATH);
         this.load.image(MBLevel.HEALTH_BUFF_ICON_KEY, MBLevel.HEALTH_BUFF_ICON_PATH);
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
-
+        this.load.image(MBLevel.SHIELD_ICON_KEY, MBLevel.SHIELD_ICON_PATH);
+        this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
+        
         // Background image
         this.load.image(Level3.BACKGROUND_IMAGE_KEY, Level3.BACKGROUND_IMAGE_PATH);
 
@@ -161,6 +190,9 @@ export default class Level3 extends MBLevel {
         this.doubleJumpGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP);
         this.level3BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level3Boss.id);
         this.coldDamageTimer = 0;
+        this.initializeIcePickPickup();
+        this.initializeDamageUpPickup();
+        this.initializeSpeedUpPickup();
         this.updateSnowBackground();
     }
 
@@ -168,7 +200,40 @@ export default class Level3 extends MBLevel {
         super.updateScene(deltaT);
         this.updateSnowBackground();
         this.updateColdDamage(deltaT);
+        this.updateIcePickPickupPrompt();
+        this.updateDamageUpPickupPrompt();
+        this.updateSpeedUpPickupPrompt();
         this.updateBossRewardState();
+
+        if(
+            this.playerCanPickUpIcePick &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectIcePickPickup();
+        }
+
+        if(
+            this.playerCanPickUpDamageUp &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectDamageUpPickup();
+        }
+
+        if(
+            this.playerCanPickUpSpeedUp &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectSpeedUpPickup();
+        }
     }
 
     public getDyingAudioKey(): string {
@@ -194,6 +259,239 @@ export default class Level3 extends MBLevel {
             const controller = this.player.ai as PlayerController;
             controller.applyEnvironmentalTickDamage(Level3.COLD_DAMAGE_AMOUNT);
         }
+    }
+
+    protected initializeIcePickPickup(): void {
+        this.playerCanPickUpIcePick = false;
+
+        if(this.icePickPickupSprite !== null){
+            this.icePickPickupSprite.destroy();
+            this.icePickPickupSprite = null;
+        }
+
+        if(MBProgress.hasUpgrade(UpgradeId.ICE_PICK)){
+            return;
+        }
+
+        this.icePickPickupSprite = this.add.sprite(MBLevel.ICE_PICK_ICON_KEY, MBLayers.PRIMARY);
+        this.icePickPickupSprite.position.copy(Level3.ICE_PICK_PICKUP_POSITION);
+        this.icePickPickupSprite.scale.copy(Level3.ICE_PICK_PICKUP_SCALE);
+    }
+
+    protected initializeDamageUpPickup(): void {
+        this.playerCanPickUpDamageUp = false;
+
+        if(this.damageUpPickupSprite !== null){
+            this.damageUpPickupSprite.destroy();
+            this.damageUpPickupSprite = null;
+        }
+
+        if(MBProgress.hasUpgrade(UpgradeId.UPGRADED_SWORD)){
+            return;
+        }
+
+        this.damageUpPickupSprite = this.add.sprite(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLayers.PRIMARY);
+        this.damageUpPickupSprite.position.copy(Level3.DAMAGE_UP_PICKUP_POSITION);
+        this.damageUpPickupSprite.scale.copy(Level3.DAMAGE_UP_PICKUP_SCALE);
+    }
+
+    protected initializeSpeedUpPickup(): void {
+        this.playerCanPickUpSpeedUp = false;
+
+        if(this.speedUpPickupSprite !== null){
+            this.speedUpPickupSprite.destroy();
+            this.speedUpPickupSprite = null;
+        }
+
+        if(MBProgress.hasUpgrade(UpgradeId.UPGRADED_BOOTS)){
+            return;
+        }
+
+        this.speedUpPickupSprite = this.add.sprite(MBLevel.UPGRADED_BOOTS_ICON_KEY, MBLayers.PRIMARY);
+        this.speedUpPickupSprite.position.copy(Level3.SPEED_UP_PICKUP_POSITION);
+        this.speedUpPickupSprite.scale.copy(Level3.SPEED_UP_PICKUP_SCALE);
+    }
+
+    protected initializeUI(): void {
+        super.initializeUI();
+
+        const promptPosition = new Vec2(600 / this.getViewScale(), 720 / this.getViewScale());
+        this.icePickPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(224, 40)
+        });
+        this.icePickPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.icePickPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.icePickPickupPromptPanel.visible = false;
+
+        this.icePickPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick up Ice Pick"
+        });
+        this.icePickPickupPromptLabel.size.set(250, 24);
+        this.icePickPickupPromptLabel.font = "PixelSimple";
+        this.icePickPickupPromptLabel.fontSize = 18;
+        this.icePickPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.icePickPickupPromptLabel.visible = false;
+
+        this.damageUpPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(212, 40)
+        });
+        this.damageUpPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.damageUpPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.damageUpPickupPromptPanel.visible = false;
+
+        this.damageUpPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick up Dmg Up"
+        });
+        this.damageUpPickupPromptLabel.size.set(240, 24);
+        this.damageUpPickupPromptLabel.font = "PixelSimple";
+        this.damageUpPickupPromptLabel.fontSize = 18;
+        this.damageUpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.damageUpPickupPromptLabel.visible = false;
+
+        this.speedUpPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(230, 40)
+        });
+        this.speedUpPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.speedUpPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.speedUpPickupPromptPanel.visible = false;
+
+        this.speedUpPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick up Speed Up"
+        });
+        this.speedUpPickupPromptLabel.size.set(250, 24);
+        this.speedUpPickupPromptLabel.font = "PixelSimple";
+        this.speedUpPickupPromptLabel.fontSize = 18;
+        this.speedUpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.speedUpPickupPromptLabel.visible = false;
+    }
+
+    protected updateIcePickPickupPrompt(): void {
+        if(
+            this.icePickPickupSprite === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpIcePick = false;
+            this.icePickPickupPromptPanel.visible = false;
+            this.icePickPickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.icePickPickupSprite.position.clone(),
+            Level3.ICE_PICK_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpIcePick = playerAABB.overlapArea(pickupAABB) > 0;
+        this.icePickPickupPromptPanel.visible = this.playerCanPickUpIcePick;
+        this.icePickPickupPromptLabel.visible = this.playerCanPickUpIcePick;
+    }
+
+    protected collectIcePickPickup(): void {
+        if(this.icePickPickupSprite === null){
+            return;
+        }
+
+        this.playerCanPickUpIcePick = false;
+        this.icePickPickupPromptPanel.visible = false;
+        this.icePickPickupPromptLabel.visible = false;
+        this.icePickPickupSprite.destroy();
+        this.icePickPickupSprite = null;
+
+        this.grantUpgrade(UpgradeId.ICE_PICK);
+        this.showUpgradeRewardPopup(UpgradeId.ICE_PICK);
+    }
+
+    protected updateDamageUpPickupPrompt(): void {
+        if(
+            this.damageUpPickupSprite === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpDamageUp = false;
+            this.damageUpPickupPromptPanel.visible = false;
+            this.damageUpPickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.damageUpPickupSprite.position.clone(),
+            Level3.DAMAGE_UP_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpDamageUp = playerAABB.overlapArea(pickupAABB) > 0;
+        this.damageUpPickupPromptPanel.visible = this.playerCanPickUpDamageUp;
+        this.damageUpPickupPromptLabel.visible = this.playerCanPickUpDamageUp;
+    }
+
+    protected collectDamageUpPickup(): void {
+        if(this.damageUpPickupSprite === null){
+            return;
+        }
+
+        this.playerCanPickUpDamageUp = false;
+        this.damageUpPickupPromptPanel.visible = false;
+        this.damageUpPickupPromptLabel.visible = false;
+        this.damageUpPickupSprite.destroy();
+        this.damageUpPickupSprite = null;
+
+        this.grantUpgrade(UpgradeId.UPGRADED_SWORD);
+        this.showUpgradeRewardPopup(UpgradeId.UPGRADED_SWORD);
+    }
+
+    protected updateSpeedUpPickupPrompt(): void {
+        if(
+            this.speedUpPickupSprite === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpSpeedUp = false;
+            this.speedUpPickupPromptPanel.visible = false;
+            this.speedUpPickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.speedUpPickupSprite.position.clone(),
+            Level3.SPEED_UP_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpSpeedUp = playerAABB.overlapArea(pickupAABB) > 0;
+        this.speedUpPickupPromptPanel.visible = this.playerCanPickUpSpeedUp;
+        this.speedUpPickupPromptLabel.visible = this.playerCanPickUpSpeedUp;
+    }
+
+    protected collectSpeedUpPickup(): void {
+        if(this.speedUpPickupSprite === null){
+            return;
+        }
+
+        this.playerCanPickUpSpeedUp = false;
+        this.speedUpPickupPromptPanel.visible = false;
+        this.speedUpPickupPromptLabel.visible = false;
+        this.speedUpPickupSprite.destroy();
+        this.speedUpPickupSprite = null;
+
+        this.grantUpgrade(UpgradeId.UPGRADED_BOOTS);
+        this.showUpgradeRewardPopup(UpgradeId.UPGRADED_BOOTS);
     }
 
     // ── Boss initialization (called by MBLevel.startScene via initializeBoss) ─

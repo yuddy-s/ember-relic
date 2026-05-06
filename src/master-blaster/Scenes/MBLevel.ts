@@ -44,6 +44,8 @@ import SplashScreen from "./SplashScreen";
 export const MBLayers = {
     // Optional level background layer
     BACKGROUND: "LEVEL_BG",
+    // Optional cave overlay background layer
+    CAVE_BACKGROUND: "CAVE_BG",
     // The primary layer
     PRIMARY: "PRIMARY",
     // The UI layer
@@ -130,6 +132,8 @@ export default abstract class MBLevel extends Scene {
     protected levelEndPromptLabel!: Label;
     protected playerCanInteractWithLevelEnd: boolean;
     protected levelEndTransitionStarted: boolean;
+    protected deathTransitionStarted: boolean;
+    protected deathLabel!: Label;
 
     // Level end transition timer and graphic
     protected levelTransitionTimer!: Timer;
@@ -325,11 +329,12 @@ export default abstract class MBLevel extends Scene {
         this.boss = undefined;
         this.bossDamageCooldownTimer = 0;
         this.bossDamageCooldownDuration = 0.2;
-        this.damagingTileDamage = 1;
+        this.damagingTileDamage = 5;
         this.damagingTileKnockbackSpeed = 170;
         this.damageableEnemies = new Array();
         this.playerCanInteractWithLevelEnd = false;
         this.levelEndTransitionStarted = false;
+        this.deathTransitionStarted = false;
     }
 
     public initScene(init: Record<string, any>): void {
@@ -341,6 +346,7 @@ export default abstract class MBLevel extends Scene {
         this.bossDamageCooldownTimer = 0;
         this.playerCanInteractWithLevelEnd = false;
         this.levelEndTransitionStarted = false;
+        this.deathTransitionStarted = false;
 
         // Initialize the layers
         this.initLayers();
@@ -419,7 +425,7 @@ export default abstract class MBLevel extends Scene {
         this.refreshBossUI();
         this.updateLevelEndPrompt();
 
-        if(!this.pauseMenuOpen){
+        if(!this.pauseMenuOpen && !this.deathTransitionStarted){
             this.handleDamagingTileContact();
             this.handleOutOfBoundsDeath();
         }
@@ -587,6 +593,14 @@ export default abstract class MBLevel extends Scene {
         return null;
     }
 
+    protected getPlayerDeathDestination(): new (...args: any) => Scene {
+        return SplashScreen;
+    }
+
+    protected getPlayerDeathInitData(): Record<string, any> {
+        return MBProgress.toInitData();
+    }
+
     protected warpToScene(scene: new (...args: any) => Scene, init?: Record<string, any>): void {
         this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
         this.sceneManager.changeToScene(scene, init);
@@ -645,8 +659,12 @@ export default abstract class MBLevel extends Scene {
                 break;
             }
             case MBEvents.PLAYER_DEAD: {
+                this.startDeathTransition();
+                break;
+            }
+            case MBEvents.PLAYER_RESPAWN: {
                 this.emitter.fireEvent(GameEventType.STOP_SOUND, { key: this.levelMusicKey });
-                this.sceneManager.changeToScene(MainMenu);
+                this.sceneManager.changeToScene(this.getPlayerDeathDestination(), this.getPlayerDeathInitData());
                 break;
             }
             // Default: Throw an error! No unhandled events allowed.
@@ -759,6 +777,39 @@ export default abstract class MBLevel extends Scene {
         this.levelTransitionScreen.tweens.play("fadeIn");
     }
 
+    protected startDeathTransition(): void {
+        if(this.deathTransitionStarted){
+            return;
+        }
+
+        this.deathTransitionStarted = true;
+        this.playerCanInteractWithLevelEnd = false;
+        Input.disableInput();
+        this.setPauseMenuOpen(false);
+
+        if(this.levelEndPromptPanel !== undefined){
+            this.levelEndPromptPanel.visible = false;
+        }
+        if(this.levelEndPromptLabel !== undefined){
+            this.levelEndPromptLabel.visible = false;
+        }
+
+        if(this.player !== undefined){
+            this.player.freeze();
+            if(this.player.hasPhysics){
+                this.player.disablePhysics();
+            }
+        }
+
+        this.levelTransitionScreen.color = Color.BLACK;
+        this.levelTransitionScreen.alpha = 0;
+        this.levelTransitionScreen.visible = true;
+        this.deathLabel.alpha = 0;
+        this.deathLabel.visible = true;
+        this.levelTransitionScreen.tweens.play("deathFadeIn");
+        this.deathLabel.tweens.play("deathFadeIn");
+    }
+
     protected updateLevelEndPrompt(): void {
         if(
             this.levelEndArea === undefined ||
@@ -768,7 +819,8 @@ export default abstract class MBLevel extends Scene {
             this.pauseMenuOpen ||
             this.upgradeRewardOpen ||
             this.dialogueOpen ||
-            this.levelEndTransitionStarted
+            this.levelEndTransitionStarted ||
+            this.deathTransitionStarted
         ){
             this.playerCanInteractWithLevelEnd = false;
             if(this.levelEndPromptPanel !== undefined){
@@ -1568,6 +1620,7 @@ export default abstract class MBLevel extends Scene {
         this.receiver.subscribe(MBEvents.LEVEL_END);
         this.receiver.subscribe(MBEvents.HEALTH_CHANGE);
         this.receiver.subscribe(MBEvents.PLAYER_DEAD);
+        this.receiver.subscribe(MBEvents.PLAYER_RESPAWN);
         this.receiver.subscribe(MBEvents.PARTICLE_HIT);
         this.receiver.subscribe(MBEvents.BOSS_PARTICLE_HIT);
         this.receiver.subscribe(MBEvents.ENEMY_PARTICLE_HIT);
@@ -1687,7 +1740,13 @@ export default abstract class MBLevel extends Scene {
         this.levelEndPromptLabel.textColor = new Color(246, 238, 214, 1);
         this.levelEndPromptLabel.visible = false;
 
-        this.levelTransitionScreen = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, { position: new Vec2(300, 200), size: new Vec2(600, 400) });
+        const viewCenter = this.viewport.getHalfSize();
+        const viewSize = viewCenter.scaled(2);
+
+        this.levelTransitionScreen = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: viewCenter.clone(),
+            size: viewSize.clone()
+        });
         this.levelTransitionScreen.color = new Color(34, 32, 52);
         this.levelTransitionScreen.alpha = 1;
 
@@ -1721,6 +1780,45 @@ export default abstract class MBLevel extends Scene {
                 }
             ],
             onEnd: MBEvents.LEVEL_START
+        });
+
+        this.levelTransitionScreen.tweens.add("deathFadeIn", {
+            startDelay: 0,
+            duration: 1200,
+            effects: [
+                {
+                    property: TweenableProperties.alpha,
+                    start: 0,
+                    end: 1,
+                    ease: EaseFunctionType.IN_OUT_QUAD
+                }
+            ],
+            onEnd: MBEvents.PLAYER_RESPAWN
+        });
+
+        this.deathLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: viewCenter.clone(),
+            text: "YOU DIED"
+        });
+        this.deathLabel.size.set(viewSize.x, 80);
+        this.deathLabel.font = "PixelSimple";
+        this.deathLabel.fontSize = 56;
+        this.deathLabel.textColor = Color.WHITE;
+        this.deathLabel.backgroundColor = Color.TRANSPARENT;
+        this.deathLabel.borderColor = Color.TRANSPARENT;
+        this.deathLabel.visible = false;
+        this.deathLabel.alpha = 0;
+        this.deathLabel.tweens.add("deathFadeIn", {
+            startDelay: 150,
+            duration: 800,
+            effects: [
+                {
+                    property: TweenableProperties.alpha,
+                    start: 0,
+                    end: 1,
+                    ease: EaseFunctionType.IN_OUT_QUAD
+                }
+            ]
         });
 
         this.initializeUpgradeRewardUI();

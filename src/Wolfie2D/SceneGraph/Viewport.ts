@@ -223,6 +223,14 @@ export default class Viewport {
         this.following = node;
     }
 
+    /**
+     * Stop following a GameNode and clear any smoothed camera positions.
+     */
+    unfollow(): void {
+        this.following = null;
+        this.lastPositions.clear();
+    }
+
     updateView(): void {
         if(this.lastPositions.getSize() > this.smoothingFactor){
             this.lastPositions.dequeue();

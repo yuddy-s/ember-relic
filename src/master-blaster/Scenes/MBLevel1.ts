@@ -10,6 +10,7 @@ import MBLevel2 from "./MBLevel2";
 import Level3 from "./MBLevel3";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import HubLevel from "./HubLevel";
+import SplashScreen from "./SplashScreen";
 import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
 import { MBEvents } from "../MBEvents";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";

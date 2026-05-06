@@ -52,6 +52,8 @@ type HubPortalBinding = {
 export default class HubLevel extends MBLevel {
     private portalSprites: Array<Sprite> = [];
     private hubPortalBindings: Array<HubPortalBinding> = [];
+    private hubBackground!: Sprite;
+    private hubCaveBackground!: Rect;
     private campfireSprite: Sprite | null = null;
     private solen!: MBAnimatedSprite;
     private solenPromptPanel!: Rect;
@@ -104,6 +106,13 @@ export default class HubLevel extends MBLevel {
     public static readonly DYING_AUDIO_KEY = "DYING_AUDIO";
     public static readonly DYING_AUDIO_PATH = "game_assets/sounds/dying.wav";
 
+    public static readonly BACKGROUND_IMAGE_KEY = "HUB_BACKGROUND";
+    public static readonly BACKGROUND_IMAGE_PATH = "game_assets/tilemaps/hubBg.png";
+    public static readonly BACKGROUND_PARALLAX = new Vec2(0.25, 0.15);
+    public static readonly BACKGROUND_LAYER_DEPTH = -100;
+    public static readonly BACKGROUND_VIEW_PADDING = 1.05;
+    public static readonly CAVE_BACKGROUND_START_Y = 1152;
+
     public constructor(viewport: Viewport, sceneManager: SceneManager, renderingManager: RenderingManager, options: Record<string, any>) {
         super(viewport, sceneManager, renderingManager, options);
 
@@ -113,6 +122,7 @@ export default class HubLevel extends MBLevel {
         this.damagingLayerKey = HubLevel.DAMAGING_LAYER_KEY;
         this.wallsLayerKey = HubLevel.WALLS_LAYER_KEY;
         this.backgroundImageKey = undefined;
+        this.backgroundParallax = HubLevel.BACKGROUND_PARALLAX;
 
         this.playerSpriteKey = HubLevel.PLAYER_SPRITE_KEY;
         this.playerSpawn = HubLevel.PLAYER_SPAWN;
@@ -144,6 +154,7 @@ export default class HubLevel extends MBLevel {
         this.load.audio(this.jumpAudioKey, HubLevel.JUMP_AUDIO_PATH);
         this.load.audio(this.tileDestroyedAudioKey, HubLevel.TILE_DESTROYED_PATH);
         this.load.audio(this.dyingAudioKey, HubLevel.DYING_AUDIO_PATH);
+        this.load.image(HubLevel.BACKGROUND_IMAGE_KEY, HubLevel.BACKGROUND_IMAGE_PATH);
     }
 
     public unloadScene(): void {
@@ -161,10 +172,12 @@ export default class HubLevel extends MBLevel {
         if(defaultPortalDestination !== null){
             this.travelPortalDestination = defaultPortalDestination;
         }
+        this.updateHubBackground();
     }
 
     public updateScene(deltaT: number): void {
         super.updateScene(deltaT);
+        this.updateHubBackground();
         this.updateSolenFacing();
         this.updateSolenPrompt();
 
@@ -176,6 +189,58 @@ export default class HubLevel extends MBLevel {
             Input.isKeyJustPressed("e")
         ){
             this.startSolenConversation();
+        }
+    }
+
+    protected initializeBackground(): void {
+        this.addParallaxLayer(MBLayers.BACKGROUND, HubLevel.BACKGROUND_PARALLAX, HubLevel.BACKGROUND_LAYER_DEPTH);
+        this.addParallaxLayer(MBLayers.CAVE_BACKGROUND, HubLevel.BACKGROUND_PARALLAX, HubLevel.BACKGROUND_LAYER_DEPTH + 1);
+        this.hubBackground = this.add.sprite(HubLevel.BACKGROUND_IMAGE_KEY, MBLayers.BACKGROUND);
+        this.hubCaveBackground = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.CAVE_BACKGROUND, {
+            position: Vec2.ZERO,
+            size: Vec2.ZERO
+        });
+        this.hubCaveBackground.color = Color.BLACK;
+        this.hubCaveBackground.visible = false;
+        this.updateHubBackground();
+    }
+
+    protected updateHubBackground(): void {
+        if(this.hubBackground === undefined || this.hubCaveBackground === undefined){
+            return;
+        }
+
+        const view = this.viewport.getView();
+        const viewWidth = view.hw * 2;
+        const viewHeight = view.hh * 2;
+        const origin = this.viewport.getOrigin();
+        const backgroundPosition = new Vec2(
+            origin.x * HubLevel.BACKGROUND_PARALLAX.x + view.hw,
+            origin.y * HubLevel.BACKGROUND_PARALLAX.y + view.hh
+        );
+
+        const coverScale = Math.max(
+            viewWidth / this.hubBackground.size.x,
+            viewHeight / this.hubBackground.size.y
+        ) * HubLevel.BACKGROUND_VIEW_PADDING;
+
+        this.hubBackground.scale.set(coverScale, coverScale);
+        this.hubBackground.position.copy(backgroundPosition);
+        this.hubBackground.visible = true;
+
+        const caveTopInView = Math.max(0, Math.min(viewHeight, HubLevel.CAVE_BACKGROUND_START_Y - origin.y));
+        const caveVisibleHeight = viewHeight - caveTopInView;
+
+        this.hubCaveBackground.visible = caveVisibleHeight > 0;
+        if(this.hubCaveBackground.visible){
+            this.hubCaveBackground.size.set(
+                viewWidth * HubLevel.BACKGROUND_VIEW_PADDING,
+                caveVisibleHeight
+            );
+            this.hubCaveBackground.position.set(
+                backgroundPosition.x,
+                origin.y * HubLevel.BACKGROUND_PARALLAX.y + caveTopInView + caveVisibleHeight / 2
+            );
         }
     }
 
@@ -445,6 +510,8 @@ export default class HubLevel extends MBLevel {
 
     protected resolveProgressTargetScene(targetSceneId: ProgressTargetSceneId): (new (...args: any) => Scene) | null {
         switch(targetSceneId){
+            case ProgressTargetSceneId.HUB:
+                return HubLevel;
             case ProgressTargetSceneId.LEVEL_1:
                 return require("./MBLevel1").default;
             case ProgressTargetSceneId.LEVEL_2:
@@ -454,5 +521,9 @@ export default class HubLevel extends MBLevel {
             default:
                 return null;
         }
+    }
+
+    protected getPlayerDeathDestination(): new (...args: any) => Scene {
+        return HubLevel;
     }
 }

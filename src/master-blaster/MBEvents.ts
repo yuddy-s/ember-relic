@@ -22,6 +22,9 @@ export const MBEvents = {
     ENEMY_PARTICLE_HIT: "ENEMY_PARTICLE_HIT",
 
     // The event sent when the player dies. Gets sent after the player's death animation
-    PLAYER_DEAD: "PLAYER_DEAD"
+    PLAYER_DEAD: "PLAYER_DEAD",
+
+    // The event sent after the death screen has faded in and the player should respawn.
+    PLAYER_RESPAWN: "PLAYER_RESPAWN"
     
 } as const;

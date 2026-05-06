@@ -29,9 +29,12 @@ export default class SplashScreen extends Scene {
         this.addLayer(SplashLayers.BG, 0);
         this.addLayer(SplashLayers.FG, 1);
 
+        this.viewport.unfollow();
+        this.viewport.setZoomLevel(1);
         const size = this.viewport.getHalfSize();
         this.viewport.setFocus(size);
-        this.viewport.setZoomLevel(1);
+        this.viewport.setCenter(size);
+        Input.enableInput();
 
         const logo = this.add.sprite(SplashScreen.SPLASH_KEY, SplashLayers.BG);
         logo.scale.set(0.9,0.9);

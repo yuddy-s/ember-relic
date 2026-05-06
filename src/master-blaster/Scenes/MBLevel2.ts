@@ -687,6 +687,10 @@ export default class Level2 extends MBLevel {
         }
     }
 
+    protected getPlayerDeathDestination(): new (...args: any) => Scene {
+        return HubLevel;
+    }
+
     protected updateBossRewardState(): void {
         if(this.level2Boss === undefined || !this.level2Boss.isDefeated()){
             return;

@@ -28,6 +28,7 @@ export default class Level3 extends MBLevel {
     private level3BossProgressRecorded: boolean = false;
     private doubleJumpRewardShown: boolean = false;
     private doubleJumpGrantedFromBoss: boolean = false;
+    private coldDamageTimer: number = 0;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     public static readonly PLAYER_SPAWN = new Vec2(112, 2700);
@@ -52,6 +53,9 @@ export default class Level3 extends MBLevel {
     public static readonly BACKGROUND_LAYER_DEPTH = -100;
     public static readonly BACKGROUND_VIEW_PADDING = 1.05;
 
+    public static readonly COLD_DAMAGE_INTERVAL = 1;
+    public static readonly COLD_DAMAGE_AMOUNT = 10;
+
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
     public static readonly LEVEL_MUSIC_PATH = "game_assets/music/MB_level_music.wav";
@@ -69,7 +73,7 @@ export default class Level3 extends MBLevel {
     public static readonly ICICLE_PATH = "game_assets/art/icicle.png";
 
     // Adjust this spawn point to match your arena in Tiled
-    public static readonly SERIS_SPAWN = new Vec2(2400, 800);
+    public static readonly SERIS_SPAWN = new Vec2(4000, 800);
     public static readonly SERIS_SCALE = new Vec2(0.4, 0.4);
     // Half-size of Seris's collision box BEFORE scale is applied
     public static readonly SERIS_HITBOX_HALF_SIZE = new Vec2(80, 80);
@@ -156,17 +160,40 @@ export default class Level3 extends MBLevel {
         this.doubleJumpRewardShown = false;
         this.doubleJumpGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP);
         this.level3BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level3Boss.id);
+        this.coldDamageTimer = 0;
         this.updateSnowBackground();
     }
 
     public updateScene(deltaT: number): void {
         super.updateScene(deltaT);
         this.updateSnowBackground();
+        this.updateColdDamage(deltaT);
         this.updateBossRewardState();
     }
 
     public getDyingAudioKey(): string {
         return this.dyingAudioKey;
+    }
+
+    protected updateColdDamage(deltaT: number): void {
+        if(
+            this.player === undefined ||
+            MBProgress.hasUpgrade(UpgradeId.FUR_COAT) ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.coldDamageTimer = 0;
+            return;
+        }
+
+        this.coldDamageTimer += deltaT;
+
+        if(this.coldDamageTimer >= Level3.COLD_DAMAGE_INTERVAL){
+            this.coldDamageTimer -= Level3.COLD_DAMAGE_INTERVAL;
+            const controller = this.player.ai as PlayerController;
+            controller.applyEnvironmentalTickDamage(Level3.COLD_DAMAGE_AMOUNT);
+        }
     }
 
     // ── Boss initialization (called by MBLevel.startScene via initializeBoss) ─
@@ -348,5 +375,9 @@ export default class Level3 extends MBLevel {
             case ProgressTargetSceneId.LEVEL_3: return Level3;
             default: return null;
         }
+    }
+
+    protected getPlayerDeathDestination(): new (...args: any) => Scene {
+        return HubLevel;
     }
 }

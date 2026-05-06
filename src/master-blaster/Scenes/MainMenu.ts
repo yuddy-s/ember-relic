@@ -34,9 +34,11 @@ export default class MainMenu extends Scene {
         this.addUILayer(MenuLayers.UI);
 
         // Center the viewport
+        this.viewport.unfollow();
+        this.viewport.setZoomLevel(1);
         let size = this.viewport.getHalfSize();
         this.viewport.setFocus(size);
-        this.viewport.setZoomLevel(1);
+        this.viewport.setCenter(size);
 
         const logo = this.add.sprite(MainMenu.LOGO_KEY, MenuLayers.MAIN);
         logo.scale.set(0.7, 0.7);
@@ -82,4 +84,3 @@ export default class MainMenu extends Scene {
         }
     }
 }
-

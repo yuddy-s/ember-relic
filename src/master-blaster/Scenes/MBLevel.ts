@@ -872,6 +872,7 @@ export default abstract class MBLevel extends Scene {
 
         controller.velocity = Vec2.ZERO;
         controller.health = controller.maxHealth;
+        controller.resetWallLatchSideLimit();
         controller.grantInvulnerability(MBLevel.REVIVAL_INVULNERABILITY);
         controller.changeState(PlayerStates.IDLE);
 

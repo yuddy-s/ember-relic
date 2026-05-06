@@ -86,6 +86,7 @@ export default class PlayerController extends StateMachineAI {
     protected readonly COYOTE_TIME: number = 0.4;
     protected readonly JUMP_BUFFER_TIME: number = 0.4;
     protected readonly WALL_LATCH_COOLDOWN: number = 0.15;
+    protected readonly MAX_CONSECUTIVE_SAME_SIDE_WALL_LATCHES: number = 3;
     protected readonly POST_HIT_INVULNERABILITY: number = 0.8;
 
     /** Health and max health for the player */
@@ -114,6 +115,8 @@ export default class PlayerController extends StateMachineAI {
     protected flyMode: boolean;
     protected wallLatchDirection: number;
     protected wallLatchCooldownTimer: number;
+    protected lastWallLatchSide: number;
+    protected consecutiveSameSideWallLatches: number;
 
     
     public initializeAI(owner: MBAnimatedSprite, options: Record<string, any>){
@@ -137,6 +140,8 @@ export default class PlayerController extends StateMachineAI {
         this.flyMode = false;
         this.wallLatchDirection = 0;
         this.wallLatchCooldownTimer = 0;
+        this.lastWallLatchSide = 0;
+        this.consecutiveSameSideWallLatches = 0;
 
         this.health = 100
         this.maxHealth = 100;
@@ -197,6 +202,7 @@ export default class PlayerController extends StateMachineAI {
         if(this.owner.onGround && !this.isDashing()){
             this.hasAirDashed = false;
             this.coyoteTimer = this.COYOTE_TIME;
+            this.resetWallLatchSideLimit();
         } else {
             this.coyoteTimer = Math.max(0, this.coyoteTimer - deltaT);
         }
@@ -328,14 +334,29 @@ export default class PlayerController extends StateMachineAI {
         }
 
         const direction = MathUtils.sign(inputDirection);
-        if(!this.isWallOnSide(direction)){
+        if(
+            !this.isWallOnSide(direction)
+            || (
+                direction === this.lastWallLatchSide
+                && this.consecutiveSameSideWallLatches >= this.MAX_CONSECUTIVE_SAME_SIDE_WALL_LATCHES
+            )
+        ){
             return false;
+        }
+
+        if(direction === this.lastWallLatchSide){
+            this.consecutiveSameSideWallLatches += 1;
+        } else {
+            this.lastWallLatchSide = direction;
+            this.consecutiveSameSideWallLatches = 1;
         }
 
         this.wallLatchDirection = direction;
         this.jumpBufferTimer = 0;
         this.velocity.x = 0;
         this.velocity.y = 0;
+        this.dashCooldownTimer = 0;
+        this.hasAirDashed = false;
         return true;
     }
 
@@ -360,6 +381,11 @@ export default class PlayerController extends StateMachineAI {
 
     public getWallLatchDirection(): number {
         return this.wallLatchDirection;
+    }
+
+    public resetWallLatchSideLimit(): void {
+        this.lastWallLatchSide = 0;
+        this.consecutiveSameSideWallLatches = 0;
     }
 
     protected isWallOnSide(direction: number): boolean {

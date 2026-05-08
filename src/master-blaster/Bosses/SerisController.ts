@@ -3,6 +3,7 @@ import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
 import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
 import GameEvent from "../../Wolfie2D/Events/GameEvent";
 import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
+import Line from "../../Wolfie2D/Nodes/Graphics/Line";
 import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
 import AnimatedSprite from "../../Wolfie2D/Nodes/Sprites/AnimatedSprite";
@@ -24,6 +25,9 @@ type SerisControllerOptions = {
     moveSpeed?: number;
     aggroRange?: number;
     aggroHeightThreshold?: number;
+    // Optional predefined snowman spawn points (world positions) to summon
+    // when Seris uses Glacial Roar.
+    snowmanSpawns?: Vec2[];
 };
 
 // ─── Action / phase enumerations ─────────────────────────────────────────────
@@ -213,6 +217,8 @@ export default class SerisController extends ControllerAI {
     protected glacialRoarRecoveryDuration!: number;
     protected glacialRoarCooldownTimer!: number;
     protected glacialRoarCooldownDuration!: number;
+    /** Optional snowman spawn points provided by the scene for Glacial Roar. */
+    protected glacialRoarSnowmanSpawns!: Vec2[];
 
     // ── tail lash ─────────────────────────────────────────────────────────
     protected tailLashQueued!: boolean;
@@ -252,6 +258,18 @@ export default class SerisController extends ControllerAI {
     protected iceBreathHitboxHalfSize!: Vec2;
     protected iceBreathTickTimer!: number;
     protected iceBreathTickInterval!: number;
+    protected iceBreathOuterVisual!: Rect | null;
+    protected iceBreathCoreVisual!: Rect | null;
+    protected iceBreathVisualHalfHeight!: number;
+    protected iceBreathVisualMaxLength!: number;
+
+    // ── glacial roar visuals ─────────────────────────────────────────────
+    protected glacialRoarAuraOuterRing!: Line[];
+    protected glacialRoarAuraInnerRing!: Line[];
+    protected glacialRoarAuraSegments!: number;
+    protected glacialRoarAuraOuterRadius!: number;
+    protected glacialRoarAuraInnerRadius!: number;
+    protected glacialRoarAuraPulseTimer!: number;
 
     // ── death ─────────────────────────────────────────────────────────────
     protected deathSequenceStarted!: boolean;
@@ -268,6 +286,9 @@ export default class SerisController extends ControllerAI {
         this.walls = this.owner.getScene().getTilemap(options.tilemap) as OrthogonalTilemap;
         this.hitboxHalfSize = options.hitboxHalfSize.clone();
         this.icicleImageKey = options.icicleImageKey;
+
+        // Optional snowman spawns passed from the scene (cloned for safety)
+        this.glacialRoarSnowmanSpawns = (options.snowmanSpawns ?? []).map(p => p.clone());
 
         this.moveSpeed = options.moveSpeed ?? 80;
         this.aggroRange = options.aggroRange ?? 260;
@@ -401,6 +422,17 @@ export default class SerisController extends ControllerAI {
         this.iceBreathHitboxHalfSize = new Vec2(90, 28);
         this.iceBreathTickTimer = 0;
         this.iceBreathTickInterval = 0.45;
+        this.iceBreathOuterVisual = null;
+        this.iceBreathCoreVisual = null;
+        this.iceBreathVisualHalfHeight = Math.max(18, this.iceBreathHitboxHalfSize.y + 6);
+        this.iceBreathVisualMaxLength = this.iceBreathHitboxHalfSize.x * 2 + 48;
+
+        this.glacialRoarAuraOuterRing = [];
+        this.glacialRoarAuraInnerRing = [];
+        this.glacialRoarAuraSegments = 20;
+        this.glacialRoarAuraOuterRadius = Math.max(this.hitboxHalfSize.x, this.hitboxHalfSize.y) * 1.95;
+        this.glacialRoarAuraInnerRadius = this.glacialRoarAuraOuterRadius * 0.72;
+        this.glacialRoarAuraPulseTimer = 0;
 
         // ── death ──
         this.deathSequenceStarted = false;
@@ -793,14 +825,17 @@ export default class SerisController extends ControllerAI {
         this.currentAction = "glacialRoar";
         this.attackPhase = "windup";
         this.glacialRoarTimer = 0;
+        this.glacialRoarAuraPulseTimer = 0;
         this.glacialRoarQueued = false;
         this.glacialRoarCooldownTimer = this.glacialRoarCooldownDuration;
         this.velocity.x = 0;
+        this.createGlacialRoarAuraVisuals();
         this.owner.animation.play(SerisAnimations.GLACIAL_ROAR, false);
     }
 
     protected updateGlacialRoarAction(deltaT: number): void {
         this.glacialRoarTimer += deltaT;
+        this.updateGlacialRoarAuraVisuals(deltaT);
 
         if (
             this.attackPhase === "windup" &&
@@ -811,6 +846,16 @@ export default class SerisController extends ControllerAI {
             const burstCount = 3;
             for (let i = 0; i < burstCount; i++) {
                 this.spawnIcicleTelegraph(this.player.position.x + (Math.random() - 0.5) * 120);
+            }
+            // If the scene provided snowman spawn points, summon them now.
+            if (this.glacialRoarSnowmanSpawns && this.glacialRoarSnowmanSpawns.length > 0) {
+                const scene: any = this.owner.getScene();
+                for (const sp of this.glacialRoarSnowmanSpawns) {
+                    // Call the scene's spawnSnowman helper if available
+                    if (typeof scene.spawnSnowman === "function") {
+                        scene.spawnSnowman(sp.clone());
+                    }
+                }
             }
         }
 
@@ -838,6 +883,7 @@ export default class SerisController extends ControllerAI {
         this.plannedAction = null;
         this.glacialRoarTimer = 0;
         this.glacialRoarQueued = false;
+        this.clearGlacialRoarAuraVisuals();
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1021,12 +1067,14 @@ export default class SerisController extends ControllerAI {
             halfSize: this.iceBreathHitboxHalfSize.clone(),
             active: false
         };
+        this.createIceBreathVisuals();
         this.owner.animation.play(SerisAnimations.ICE_BREATH, false);
     }
 
     protected updateIceBreathAction(deltaT: number): void {
         this.iceBreathTimer += deltaT;
         this.updateIceBreathHitbox();
+        this.updateIceBreathVisuals();
 
         if (
             this.attackPhase === "windup" &&
@@ -1071,6 +1119,7 @@ export default class SerisController extends ControllerAI {
         this.iceBreathHasConnected = false;
         this.iceBreathHitbox = null;
         this.iceBreathTickTimer = 0;
+        this.clearIceBreathVisuals();
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1093,6 +1142,8 @@ export default class SerisController extends ControllerAI {
         this.airborneGroundedStallTimer = 0;
         this.clearDiveWarningTelegraphs();
         this.clearArenaSlamWave();
+        this.clearIceBreathVisuals();
+        this.clearGlacialRoarAuraVisuals();
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1690,6 +1741,170 @@ export default class SerisController extends ControllerAI {
                 this.diveLandingKnockbackY
             ));
         }
+    }
+
+    protected createIceBreathVisuals(): void {
+        this.clearIceBreathVisuals();
+        const scene = this.owner.getScene();
+        this.iceBreathOuterVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: this.owner.position.clone(),
+            size: new Vec2(28, this.iceBreathVisualHalfHeight * 2 + 8)
+        });
+        this.iceBreathOuterVisual.color = new Color(28, 72, 122, 0.22);
+        this.iceBreathOuterVisual.borderColor = new Color(74, 144, 214, 0.54);
+        this.iceBreathOuterVisual.borderWidth = 2;
+
+        this.iceBreathCoreVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: this.owner.position.clone(),
+            size: new Vec2(22, this.iceBreathVisualHalfHeight * 2)
+        });
+        this.iceBreathCoreVisual.color = new Color(46, 102, 164, 0.20);
+        this.iceBreathCoreVisual.borderColor = new Color(108, 176, 230, 0.40);
+        this.iceBreathCoreVisual.borderWidth = 1;
+    }
+
+    protected updateIceBreathVisuals(): void {
+        if (this.iceBreathOuterVisual === null || this.iceBreathCoreVisual === null) {
+            return;
+        }
+
+        const facingDirection = this.owner.invertX ? -1 : 1;
+        const progress =
+            this.attackPhase === "windup"
+                ? Math.min(1, this.iceBreathTimer / Math.max(this.iceBreathWindupDuration, 0.01))
+                : this.attackPhase === "active"
+                    ? 1
+                    : Math.max(
+                        0,
+                        1 - (
+                            this.iceBreathTimer -
+                            this.iceBreathWindupDuration -
+                            this.iceBreathActiveDuration
+                        ) / Math.max(this.iceBreathRecoveryDuration, 0.01)
+                    );
+
+        const beamLength = Math.max(20, this.iceBreathVisualMaxLength * progress);
+        const beamCenter = new Vec2(
+            this.owner.position.x + facingDirection * (this.hitboxHalfSize.x + beamLength * 0.5 + 10),
+            this.owner.position.y + this.iceBreathHitboxOffset.y
+        );
+        const pulse = this.attackPhase === "active" ? 1 + 0.08 * Math.sin(this.iceBreathTimer * Math.PI * 8) : 1;
+
+        this.iceBreathOuterVisual.position.copy(beamCenter);
+        this.iceBreathOuterVisual.size.set(beamLength * pulse, this.iceBreathVisualHalfHeight * 2 + 8);
+        this.iceBreathOuterVisual.color = new Color(28, 72, 122, 0.14 + 0.20 * progress);
+        this.iceBreathOuterVisual.borderColor = new Color(74, 144, 214, 0.26 + 0.46 * progress);
+
+        this.iceBreathCoreVisual.position.copy(beamCenter);
+        this.iceBreathCoreVisual.size.set(Math.max(14, (beamLength - 8) * pulse), this.iceBreathVisualHalfHeight * 2);
+        this.iceBreathCoreVisual.color = new Color(46, 102, 164, 0.10 + 0.22 * progress);
+        this.iceBreathCoreVisual.borderColor = new Color(108, 176, 230, 0.18 + 0.34 * progress);
+    }
+
+    protected clearIceBreathVisuals(): void {
+        if (this.iceBreathOuterVisual !== null) {
+            this.iceBreathOuterVisual.destroy();
+            this.iceBreathOuterVisual = null;
+        }
+
+        if (this.iceBreathCoreVisual !== null) {
+            this.iceBreathCoreVisual.destroy();
+            this.iceBreathCoreVisual = null;
+        }
+    }
+
+    protected createGlacialRoarAuraVisuals(): void {
+        this.clearGlacialRoarAuraVisuals();
+        const scene = this.owner.getScene();
+
+        for (let i = 0; i < this.glacialRoarAuraSegments; i++) {
+            const outerSeg = <Line>scene.add.graphic(GraphicType.LINE, "PRIMARY", {
+                start: this.owner.position.clone(),
+                end: this.owner.position.clone()
+            });
+            outerSeg.thickness = 3;
+            outerSeg.color = new Color(86, 176, 244, 0.62);
+            this.glacialRoarAuraOuterRing.push(outerSeg);
+
+            const innerSeg = <Line>scene.add.graphic(GraphicType.LINE, "PRIMARY", {
+                start: this.owner.position.clone(),
+                end: this.owner.position.clone()
+            });
+            innerSeg.thickness = 2;
+            innerSeg.color = new Color(132, 212, 255, 0.44);
+            this.glacialRoarAuraInnerRing.push(innerSeg);
+        }
+    }
+
+    protected updateGlacialRoarAuraVisuals(deltaT: number): void {
+        if (this.glacialRoarAuraOuterRing.length === 0 || this.glacialRoarAuraInnerRing.length === 0) {
+            return;
+        }
+
+        this.glacialRoarAuraPulseTimer += deltaT;
+        const pulse = 1 + 0.10 * Math.sin(this.glacialRoarAuraPulseTimer * Math.PI * 5.5);
+        const intensity =
+            this.attackPhase === "windup"
+                ? Math.min(1, this.glacialRoarTimer / Math.max(this.glacialRoarWindupDuration, 0.01))
+                : this.attackPhase === "active"
+                    ? 1
+                    : Math.max(
+                        0,
+                        1 - (
+                            this.glacialRoarTimer -
+                            this.glacialRoarWindupDuration -
+                            this.glacialRoarActiveDuration
+                        ) / Math.max(this.glacialRoarRecoveryDuration, 0.01)
+                    );
+
+        const center = this.owner.position.clone();
+        const outerRadius = this.glacialRoarAuraOuterRadius * pulse;
+        const innerRadius = this.glacialRoarAuraInnerRadius * pulse;
+        const segmentCount = this.glacialRoarAuraSegments;
+        const outerAlpha = 0.22 + 0.64 * intensity;
+        const innerAlpha = 0.18 + 0.54 * intensity;
+
+        for (let i = 0; i < segmentCount; i++) {
+            const t0 = (i / segmentCount) * Math.PI * 2;
+            const t1 = ((i + 1) / segmentCount) * Math.PI * 2;
+
+            const outerStart = new Vec2(
+                center.x + Math.cos(t0) * outerRadius,
+                center.y + Math.sin(t0) * outerRadius
+            );
+            const outerEnd = new Vec2(
+                center.x + Math.cos(t1) * outerRadius,
+                center.y + Math.sin(t1) * outerRadius
+            );
+            this.glacialRoarAuraOuterRing[i].start = outerStart;
+            this.glacialRoarAuraOuterRing[i].end = outerEnd;
+            this.glacialRoarAuraOuterRing[i].color = new Color(86, 176, 244, outerAlpha);
+
+            const innerStart = new Vec2(
+                center.x + Math.cos(t0) * innerRadius,
+                center.y + Math.sin(t0) * innerRadius
+            );
+            const innerEnd = new Vec2(
+                center.x + Math.cos(t1) * innerRadius,
+                center.y + Math.sin(t1) * innerRadius
+            );
+            this.glacialRoarAuraInnerRing[i].start = innerStart;
+            this.glacialRoarAuraInnerRing[i].end = innerEnd;
+            this.glacialRoarAuraInnerRing[i].color = new Color(132, 212, 255, innerAlpha);
+        }
+    }
+
+    protected clearGlacialRoarAuraVisuals(): void {
+        for (const seg of this.glacialRoarAuraOuterRing) {
+            seg.destroy();
+        }
+
+        for (const seg of this.glacialRoarAuraInnerRing) {
+            seg.destroy();
+        }
+
+        this.glacialRoarAuraOuterRing = [];
+        this.glacialRoarAuraInnerRing = [];
     }
 
     // ─────────────────────────────────────────────────────────────────────

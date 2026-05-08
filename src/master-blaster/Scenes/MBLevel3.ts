@@ -24,6 +24,25 @@ import SerisController from "../Bosses/SerisController";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import PlayerController from "../Player/PlayerController";
 import HubLevel from "./HubLevel";
+import { addEnemyPhysics, createScaledEnemyPhysicsConfig, placeGroundEnemyOnFloor } from "../Enemies/EnemyPhysicsUtils";
+import SnowmanController from "../Enemies/Minions/snowman/SnowmanController";
+import {
+    DEFAULT_SNOWMAN_PHYSICS,
+    SNOWMAN_SPRITE_KEY,
+    SNOWMAN_SPRITE_PATH
+} from "../Enemies/Minions/snowman/SnowmanConfig";
+import WolfController from "../Enemies/Minions/wolf/WolfController";
+import {
+    DEFAULT_WOLF_PHYSICS,
+    WOLF_SPRITE_KEY,
+    WOLF_SPRITE_PATH
+} from "../Enemies/Minions/wolf/WolfConfig";
+import GuardController from "../Enemies/Minions/guard/GuardController";
+import {
+    DEFAULT_GUARD_PHYSICS,
+    GUARD_SPRITE_KEY,
+    GUARD_SPRITE_PATH
+} from "../Enemies/Minions/guard/GuardConfig";
 
 export default class Level3 extends MBLevel {
     private snowBackground!: Sprite;
@@ -49,7 +68,8 @@ export default class Level3 extends MBLevel {
     private playerCanPickUpSpeedUp: boolean = false;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
-    public static readonly PLAYER_SPAWN = new Vec2(112, 2700);
+    //112, 2700
+    public static readonly PLAYER_SPAWN = new Vec2(1360, 2000);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 
@@ -98,6 +118,35 @@ export default class Level3 extends MBLevel {
     public static readonly SERIS_SPRITE_PATH = "game_assets/spritesheets/enemies/bosses/seris.json";
     public static readonly ICICLE_KEY = "ICICLE_KEY";
     public static readonly ICICLE_PATH = "game_assets/art/icicle.png";
+    public static readonly SNOWBALL_KEY = "SNOWBALL_KEY";
+    public static readonly SNOWBALL_PATH = "game_assets/art/snowball.png";
+
+    public static readonly SNOWMAN_SPAWNS = [
+        new Vec2(704, 3100),
+        new Vec2(1168, 2670),
+        new Vec2(1236, 2640),
+        new Vec2(1360, 2200)
+    ];
+
+    // Predefined spawn points used when Seris uses Glacial Roar to summon snowmen.
+    // Fill this array with arena-local world coordinates to control where
+    // snowmen appear during the roar. Defaults to the same set as the
+    // static `SNOWMAN_SPAWNS` above but can be customized for the boss fight.
+    public static readonly SERIS_GLACIAL_ROAR_SNOWMAN_SPAWNS = [
+        new Vec2(4192, 740),
+        new Vec2(3744, 740)
+    ];
+
+    public static readonly WOLF_SPAWNS = [
+        new Vec2(1456, 1976),
+        new Vec2(2712, 2368),
+        new Vec2(3520, 1840)
+    ];
+
+    public static readonly GUARD_SPAWNS = [
+        new Vec2(1792, 2864),
+        new Vec2(2988, 2240)
+    ];
 
     // Adjust this spawn point to match your arena in Tiled
     public static readonly SERIS_SPAWN = new Vec2(4000, 770);
@@ -150,6 +199,10 @@ export default class Level3 extends MBLevel {
         // Boss sprites
         this.load.spritesheet(Level3.SERIS_SPRITE_KEY, Level3.SERIS_SPRITE_PATH);
         this.load.image(Level3.ICICLE_KEY, Level3.ICICLE_PATH);
+        this.load.image(Level3.SNOWBALL_KEY, Level3.SNOWBALL_PATH);
+        this.load.spritesheet(SNOWMAN_SPRITE_KEY, SNOWMAN_SPRITE_PATH);
+        this.load.spritesheet(WOLF_SPRITE_KEY, WOLF_SPRITE_PATH);
+        this.load.spritesheet(GUARD_SPRITE_KEY, GUARD_SPRITE_PATH);
 
         // Upgrade icons (same set as Level2)
         this.load.image(MBLevel.LANTERN_ICON_KEY, MBLevel.LANTERN_ICON_PATH);
@@ -185,6 +238,9 @@ export default class Level3 extends MBLevel {
 
     public startScene(): void {
         super.startScene();
+        this.initializeSnowmen();
+        this.initializeWolves();
+        this.initializeGuards();
         this.travelPortalDestination = MainMenu;
         this.doubleJumpRewardShown = false;
         this.doubleJumpGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP);
@@ -494,6 +550,106 @@ export default class Level3 extends MBLevel {
         this.showUpgradeRewardPopup(UpgradeId.UPGRADED_BOOTS);
     }
 
+    protected initializeSnowmen(): void {
+        for(const spawn of Level3.SNOWMAN_SPAWNS){
+            this.spawnSnowman(spawn);
+        }
+    }
+
+    protected initializeWolves(): void {
+        for(const spawn of Level3.WOLF_SPAWNS){
+            this.spawnWolf(spawn);
+        }
+    }
+
+    protected initializeGuards(): void {
+        for(const spawn of Level3.GUARD_SPAWNS){
+            this.spawnGuard(spawn);
+        }
+    }
+
+    public spawnSnowman(spawn: Vec2): MBAnimatedSprite {
+        const snowman = this.add.animatedSprite(SNOWMAN_SPRITE_KEY, MBLayers.PRIMARY);
+        snowman.position.copy(spawn);
+
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_SNOWMAN_PHYSICS
+        });
+
+        snowman.scale.copy(physics.spriteScale);
+
+        if(physics.snapToFloor && physics.movementMode === "ground"){
+            placeGroundEnemyOnFloor(snowman, this.walls, this.tilemapScale, physics.bodyHitboxHalfSize);
+        }
+
+        addEnemyPhysics(snowman, physics, true, false);
+        snowman.setGroup(MBPhysicsGroups.BOSS);
+        snowman.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        snowman.addAI(SnowmanController, {
+            player: this.player,
+            projectileImageKey: Level3.SNOWBALL_KEY,
+            hitboxHalfSize: physics.bodyHitboxHalfSize.clone()
+        });
+        this.registerDamageableEnemy(snowman, snowman.ai as SnowmanController);
+        return snowman;
+    }
+
+    protected spawnWolf(spawn: Vec2): MBAnimatedSprite {
+        const wolf = this.add.animatedSprite(WOLF_SPRITE_KEY, MBLayers.PRIMARY);
+        wolf.position.copy(spawn);
+
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_WOLF_PHYSICS
+        });
+
+        wolf.scale.copy(physics.spriteScale);
+
+        if(physics.snapToFloor && physics.movementMode === "ground"){
+            placeGroundEnemyOnFloor(wolf, this.walls, this.tilemapScale, physics.bodyHitboxHalfSize);
+        }
+
+        addEnemyPhysics(wolf, physics, true, false);
+        wolf.setGroup(MBPhysicsGroups.BOSS);
+        wolf.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        wolf.addAI(WolfController, {
+            player: this.player,
+            homePosition: wolf.position.clone(),
+            hitboxHalfSize: physics.bodyHitboxHalfSize.clone(),
+            attackHitboxOffset: physics.attackHitboxOffset.clone(),
+            attackHitboxHalfSize: physics.attackHitboxHalfSize.clone()
+        });
+        this.registerDamageableEnemy(wolf, wolf.ai as WolfController);
+        return wolf;
+    }
+
+    protected spawnGuard(spawn: Vec2): MBAnimatedSprite {
+        const guard = this.add.animatedSprite(GUARD_SPRITE_KEY, MBLayers.PRIMARY);
+        guard.position.copy(spawn);
+
+        const physics = createScaledEnemyPhysicsConfig({
+            ...DEFAULT_GUARD_PHYSICS
+        });
+
+        guard.scale.copy(physics.spriteScale);
+
+        if(physics.snapToFloor && physics.movementMode === "ground"){
+            placeGroundEnemyOnFloor(guard, this.walls, this.tilemapScale, physics.bodyHitboxHalfSize);
+        }
+
+        addEnemyPhysics(guard, physics, true, false);
+        guard.setGroup(MBPhysicsGroups.BOSS);
+        guard.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.ENEMY_PARTICLE_HIT, "");
+        guard.addAI(GuardController, {
+            player: this.player,
+            homePosition: guard.position.clone(),
+            hitboxHalfSize: physics.bodyHitboxHalfSize.clone(),
+            shieldSlamHitboxOffset: physics.attackHitboxOffset.clone(),
+            shieldSlamHitboxHalfSize: physics.attackHitboxHalfSize.clone()
+        });
+        this.registerDamageableEnemy(guard, guard.ai as GuardController);
+        return guard;
+    }
+
     // ── Boss initialization (called by MBLevel.startScene via initializeBoss) ─
 
     protected initializeBoss(): void {
@@ -538,7 +694,9 @@ export default class Level3 extends MBLevel {
             icicleImageKey: Level3.ICICLE_KEY,
             moveSpeed: Level3.SERIS_MOVE_SPEED,
             aggroRange: Level3.SERIS_AGGRO_RANGE,
-            aggroHeightThreshold: Level3.SERIS_AGGRO_HEIGHT_THRESHOLD
+            aggroHeightThreshold: Level3.SERIS_AGGRO_HEIGHT_THRESHOLD,
+            // snowman spawn points for Glacial Roar
+            snowmanSpawns: Level3.SERIS_GLACIAL_ROAR_SNOWMAN_SPAWNS
         });
     }
 

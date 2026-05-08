@@ -38,7 +38,14 @@ export function placeGroundEnemyOnFloor(sprite: MBAnimatedSprite, walls: Orthogo
         }
 
         const tileTopY = row * tileSize.y * tilemapScale.y;
-        sprite.position.y = tileTopY - hitboxHalfSize.y - 1;
+        // Position the sprite so that both its collision box and its visual
+        // graphic rest on top of the tile. Some sprites have visuals larger
+        // than their hitboxes which can cause them to clip into the ground
+        // if we only consider the hitbox. Compute the visual half-height
+        // and use the larger of the two halves to place the sprite center.
+        const visualHalfHeight = (sprite.size.y * sprite.scale.y) / 2;
+        const usedHalf = Math.max(hitboxHalfSize.y, visualHalfHeight);
+        sprite.position.y = tileTopY - usedHalf - 1;
         return;
     }
 }

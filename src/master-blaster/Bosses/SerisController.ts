@@ -220,6 +220,13 @@ export default class SerisController extends ControllerAI {
     /** Optional snowman spawn points provided by the scene for Glacial Roar. */
     protected glacialRoarSnowmanSpawns!: Vec2[];
 
+    // Prevent player from standing on Seris' hitbox: accumulate time spent
+    // standing on top and push player off after this duration.
+    protected playerOnTopTimer!: number;
+    protected playerOnTopDuration!: number;
+    protected playerSlideOffKnockbackX!: number;
+    protected playerSlideOffKnockbackY!: number;
+
     // ── tail lash ─────────────────────────────────────────────────────────
     protected tailLashQueued!: boolean;
     protected tailLashTimer!: number;
@@ -336,7 +343,7 @@ export default class SerisController extends ControllerAI {
         this.diveLandingShockwaveHalfSize = new Vec2(28, 14);
         this.diveLandingShockwaveOuterVisuals = [null, null];
         this.diveLandingShockwaveCoreVisuals = [null, null];
-        this.diveLandingDamage = 28;
+        this.diveLandingDamage = 14;
         this.diveLandingKnockbackX = 180;
         this.diveLandingKnockbackY = -380;
         this.diveLandingShockwaveDuration = 0.95;
@@ -348,7 +355,7 @@ export default class SerisController extends ControllerAI {
         this.diveWarningWidth = this.hitboxHalfSize.x * 2 + 26;
         this.diveWarningPadding = 26;
         this.diveImpactHalfSize = new Vec2(this.hitboxHalfSize.x + 20, this.hitboxHalfSize.y * 0.7);
-        this.diveImpactDamage = 30;
+        this.diveImpactDamage = 15;
         this.arenaSlamWave = null;
         this.arenaSlamWaveHalfSize = new Vec2(220, 18);
         this.arenaSlamWaveDuration = 0.56;
@@ -368,7 +375,7 @@ export default class SerisController extends ControllerAI {
         this.icicleTelegraphDuration = 1.2;
         this.icicleDropSpeed = 520;
         this.icicleHalfSize = new Vec2(8, 18);
-        this.icicleDamage = 14;
+        this.icicleDamage = 30;
         this.icicleKnockbackX = 60;
         this.icicleKnockbackY = -160;
         this.icicleGravity = 0;    // icicles fall at constant speed — feel more deliberate
@@ -392,7 +399,7 @@ export default class SerisController extends ControllerAI {
         this.tailLashRecoveryDuration = 1.0;
         this.tailLashCooldownTimer = 0;
         this.tailLashCooldownDuration = 2.8;
-        this.tailLashDamage = 22;
+        this.tailLashDamage = 15;
         this.tailLashKnockbackX = 200;
         this.tailLashKnockbackY = -280;
         this.tailLashHasConnected = false;
@@ -409,11 +416,11 @@ export default class SerisController extends ControllerAI {
         this.iceBreathQueued = false;
         this.iceBreathTimer = 0;
         this.iceBreathWindupDuration = 1.1;
-        this.iceBreathActiveDuration = 2.5;
+        this.iceBreathActiveDuration = 4;
         this.iceBreathRecoveryDuration = 1.1;
         this.iceBreathCooldownTimer = 0;
         this.iceBreathCooldownDuration = 7.0;
-        this.iceBreathDamage = 8;         // tick damage
+        this.iceBreathDamage = 5;         // tick damage
         this.iceBreathKnockbackX = 40;
         this.iceBreathKnockbackY = -40;
         this.iceBreathHasConnected = false;
@@ -437,6 +444,12 @@ export default class SerisController extends ControllerAI {
         // ── death ──
         this.deathSequenceStarted = false;
         this.deathPoseSettled = false;
+
+        // Player-on-top anti-camping
+        this.playerOnTopTimer = 0;
+        this.playerOnTopDuration = 0.5; // seconds before sliding off
+        this.playerSlideOffKnockbackX = 220;
+        this.playerSlideOffKnockbackY = -60;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -736,6 +749,37 @@ export default class SerisController extends ControllerAI {
         if (this.currentAction !== "diveBomb") {
             this.applyGravity(deltaT);
             this.owner.move(this.resolveMovement(deltaT));
+        }
+
+        // Prevent player from standing on Seris' hitbox: detect if the
+        // player's feet are resting on Seris' top and, after a short
+        // duration, nudge the player off to avoid camping on the boss.
+        try {
+            if (this.player.hasPhysics && this.owner.hasPhysics) {
+                const pRect = this.player.collisionShape.getBoundingRect();
+                const sRect = this.owner.collisionShape.getBoundingRect();
+                const playerBottom = pRect.center.y + pRect.halfSize.y;
+                const serisTop = sRect.center.y - sRect.halfSize.y;
+                const horizOverlap = Math.abs(pRect.center.x - sRect.center.x) <= (sRect.halfSize.x + pRect.halfSize.x - 8);
+                const standingOnTop = horizOverlap && playerBottom >= serisTop - 18 && playerBottom <= serisTop + 6 && this.player.position.y < this.owner.position.y;
+
+                if (standingOnTop) {
+                    this.playerOnTopTimer += deltaT;
+                    if (this.playerOnTopTimer >= this.playerOnTopDuration) {
+                        const pc = this.player.ai as PlayerController | undefined;
+                        if (pc !== undefined) {
+                            const dir = this.player.position.x < this.owner.position.x ? -1 : 1;
+                            pc.applyDamage(10, new Vec2(this.playerSlideOffKnockbackX * dir, this.playerSlideOffKnockbackY));
+                        }
+                        this.playerOnTopTimer = 0;
+                    }
+                } else {
+                    this.playerOnTopTimer = Math.max(0, this.playerOnTopTimer - deltaT);
+                }
+            }
+        } catch (e) {
+            // Be defensive: if shapes are not available for some reason,
+            // don't crash the boss update loop.
         }
 
         // After ground phase duration, rise back into air

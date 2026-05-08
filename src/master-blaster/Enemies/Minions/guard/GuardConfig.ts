@@ -4,7 +4,7 @@ import { EnemyPhysicsConfig } from "../../EnemyPhysicsTypes";
 export const GUARD_SPRITE_KEY = "GUARD_SPRITE";
 export const GUARD_SPRITE_PATH = "game_assets/spritesheets/enemies/minion/guard.json";
 
-export const DEFAULT_GUARD_MAX_HEALTH = 14;
+export const DEFAULT_GUARD_MAX_HEALTH = 10;
 export const DEFAULT_GUARD_SPRITE_SCALE = new Vec2(0.7, 0.7);
 export const DEFAULT_GUARD_PHYSICS_SCALE = new Vec2(1, 1);
 export const DEFAULT_GUARD_HITBOX_HALF_SIZE = new Vec2(18, 28);

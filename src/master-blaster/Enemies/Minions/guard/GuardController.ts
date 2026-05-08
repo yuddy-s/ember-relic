@@ -2,7 +2,10 @@ import ControllerAI from "../../../../Wolfie2D/AI/ControllerAI";
 import AABB from "../../../../Wolfie2D/DataTypes/Shapes/AABB";
 import Vec2 from "../../../../Wolfie2D/DataTypes/Vec2";
 import GameEvent from "../../../../Wolfie2D/Events/GameEvent";
+import { GraphicType } from "../../../../Wolfie2D/Nodes/Graphics/GraphicTypes";
+import Rect from "../../../../Wolfie2D/Nodes/Graphics/Rect";
 import AnimatedSprite from "../../../../Wolfie2D/Nodes/Sprites/AnimatedSprite";
+import Color from "../../../../Wolfie2D/Utils/Color";
 import PlayerController from "../../../Player/PlayerController";
 import MBAnimatedSprite from "../../../Nodes/MBAnimatedSprite";
 import { EnemyDamageable } from "../../EnemyDamageable";
@@ -80,6 +83,13 @@ export default class GuardController extends ControllerAI implements EnemyDamage
     protected hurtCooldownDuration!: number;
     protected attackHasConnected!: boolean;
     protected wasPlayerOnFrontSide!: boolean;
+    // Reversal hit glow visual
+    protected reversalGlowVisual: Rect | null = null;
+    protected reversalGlowTimer!: number;
+    protected reversalGlowDuration!: number;
+    // During reversal, store which side (left) was closer to the player so
+    // the vulnerable hitbox can be aligned to the side the player is on.
+    protected reversalVulnerableSideIsLeft?: boolean;
 
     public initializeAI(owner: MBAnimatedSprite, options: GuardControllerOptions): void {
         this.owner = owner;
@@ -126,6 +136,10 @@ export default class GuardController extends ControllerAI implements EnemyDamage
         this.wasPlayerOnFrontSide = this.isPlayerOnFrontSide();
 
         this.owner.animation.play(GuardAnimations.IDLE, true);
+
+        this.reversalGlowVisual = null;
+        this.reversalGlowTimer = 0;
+        this.reversalGlowDuration = 0.36;
     }
 
     public activate(_options: Record<string, any>): void {}
@@ -140,14 +154,13 @@ export default class GuardController extends ControllerAI implements EnemyDamage
         const absDeltaX = Math.abs(deltaX);
         const absDeltaY = Math.abs(this.player.position.y - this.owner.position.y);
 
-        if(this.currentAction !== "reversal"){
-            this.owner.invertX = deltaX < 0;
-        }
+        // (Facing update moved below so reversal detection uses previous facing.)
 
         this.shieldSlamCooldownTimer = Math.max(0, this.shieldSlamCooldownTimer - deltaT);
         this.chargeCooldownTimer = Math.max(0, this.chargeCooldownTimer - deltaT);
         this.hurtCooldownTimer = Math.max(0, this.hurtCooldownTimer - deltaT);
         this.updateHitFlash(deltaT);
+        this.updateReversalGlow(deltaT);
 
         if(this.state.isDefeated()){
             this.updateDeathFade(deltaT);
@@ -155,6 +168,12 @@ export default class GuardController extends ControllerAI implements EnemyDamage
         }
 
         this.checkForJumpOverReversal(absDeltaX);
+
+        // Only update facing when not performing a reversal — reversal locks
+        // the guard's facing so front/back vulnerability is reliable.
+        if(this.currentAction !== "reversal"){
+            this.owner.invertX = deltaX < 0;
+        }
 
         switch(this.currentAction){
             case "shieldSlam":
@@ -180,17 +199,59 @@ export default class GuardController extends ControllerAI implements EnemyDamage
             return false;
         }
 
-        if(this.currentAction !== "reversal"){
+        // Determine whether the hit came from the front of the guard
+        const attackerX = this.player.position.x;
+
+        // By default, determine front using the guard's facing. However,
+        // if the guard is in `reversal` we want the vulnerable side to be
+        // the side that was closer to the player when reversal started.
+        let isFront: boolean;
+        if(this.currentAction === "reversal" && this.reversalVulnerableSideIsLeft !== undefined){
+            // The "front" is the opposite side of the vulnerable side.
+            if(this.reversalVulnerableSideIsLeft){
+                isFront = attackerX > this.owner.position.x;
+            } else {
+                isFront = attackerX < this.owner.position.x;
+            }
+        } else {
+            const facingLeft = this.owner.invertX;
+            isFront = facingLeft
+                ? attackerX < this.owner.position.x
+                : attackerX > this.owner.position.x;
+        }
+
+        const playerController = this.player.ai as PlayerController | undefined;
+
+        if(isFront){
+            // Front hits are blocked: apply a small knockback to the player but deal no damage
+            const knockDir = attackerX < this.owner.position.x ? -1 : 1;
+            if(playerController !== undefined){
+                playerController.applyDamage(0, new Vec2(80 * knockDir, -40));
+            }
+            // Short hurt cooldown to prevent spam
+            this.hurtCooldownTimer = this.hurtCooldownDuration;
             return false;
         }
 
-        const damaged = this.state.damage(amount);
+        // Back hits — allowed. If the guard is in reversal state, treat as bonus damage
+        let finalDamage = amount;
+        if(this.currentAction === "reversal"){
+            finalDamage = Math.ceil(amount * 2);
+        }
+
+        const damaged = this.state.damage(finalDamage);
         if(!damaged){
             return false;
         }
 
         this.hitFlashTimer = this.hitFlashDuration;
         this.hurtCooldownTimer = this.hurtCooldownDuration;
+
+        // If hit during reversal, spawn a glow visual to show bonus hit
+        if(this.currentAction === "reversal"){
+            this.spawnReversalGlow();
+        }
+
         if(this.state.isDefeated()){
             this.startDeathFade();
         }
@@ -307,8 +368,11 @@ export default class GuardController extends ControllerAI implements EnemyDamage
         this.currentAction = "reversal";
         this.attackPhase = "none";
         this.actionTimer = 0;
-        this.velocity.x = 0;
+        // Record which side the player is on so we can make the vulnerable
+        // hitbox face the player during reversal.
+        this.reversalVulnerableSideIsLeft = this.player.position.x < this.owner.position.x;
         this.owner.invertX = !this.owner.invertX;
+        this.velocity.x = 0;
         this.owner.animation.play(GuardAnimations.REVERSAL, false);
     }
 
@@ -320,17 +384,59 @@ export default class GuardController extends ControllerAI implements EnemyDamage
         if(this.actionTimer >= this.reversalDuration){
             this.currentAction = "idle";
             this.actionTimer = 0;
+            // Clear the temporary reversal-facing flag
+            this.reversalVulnerableSideIsLeft = undefined;
             this.owner.animation.play(GuardAnimations.IDLE, true);
+        }
+    }
+
+    protected spawnReversalGlow(): void {
+        const scene: any = this.owner.getScene();
+        if(this.reversalGlowVisual !== null){
+            this.reversalGlowVisual.destroy();
+            this.reversalGlowVisual = null;
+        }
+
+        const size = new Vec2(this.owner.size.x * this.owner.scale.x * 1.08, this.owner.size.y * this.owner.scale.y * 1.08);
+        const center = this.owner.position.clone();
+        const glow = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: center.clone(),
+            size
+        });
+        glow.color = new Color(120, 220, 255, 0.52);
+        glow.borderColor = new Color(200, 255, 255, 0.9);
+        glow.borderWidth = 2;
+        this.reversalGlowVisual = glow;
+        this.reversalGlowTimer = this.reversalGlowDuration;
+    }
+
+    protected updateReversalGlow(deltaT: number): void {
+        if(this.reversalGlowVisual === null){
+            return;
+        }
+
+        this.reversalGlowTimer = Math.max(0, this.reversalGlowTimer - deltaT);
+        // Follow the guard
+        this.reversalGlowVisual.position.copy(this.owner.position);
+
+        if(this.reversalGlowTimer <= 0){
+            this.reversalGlowVisual.destroy();
+            this.reversalGlowVisual = null;
         }
     }
 
     protected checkForJumpOverReversal(absDeltaX: number): void {
         const isFront = this.isPlayerOnFrontSide();
-        const playerHighEnough = this.player.position.y < this.owner.position.y - this.jumpOverTriggerHeight;
-        const crossedSides = this.wasPlayerOnFrontSide && !isFront;
+
+        const playerHighEnough = true;
+        // const playerHighEnough =
+        //     this.player.position.y <
+        //     this.owner.position.y - this.jumpOverTriggerHeight;
+
+        const crossedSides =
+            this.wasPlayerOnFrontSide !== isFront;
 
         if(
-            this.currentAction !== "charge" &&
             this.currentAction !== "reversal" &&
             crossedSides &&
             playerHighEnough &&
@@ -343,10 +449,13 @@ export default class GuardController extends ControllerAI implements EnemyDamage
     }
 
     protected isPlayerOnFrontSide(): boolean {
+        // If the guard is inverted (facing left) then the player's x being
+        // less than the guard's x means the player is on the front side.
+        // Otherwise (facing right) the player is on the front when to the
+        // right of the guard.
         if(this.owner.invertX){
             return this.player.position.x <= this.owner.position.x;
         }
-
         return this.player.position.x >= this.owner.position.x;
     }
 

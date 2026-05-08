@@ -69,7 +69,7 @@ export default class Level3 extends MBLevel {
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     //112, 2700
-    public static readonly PLAYER_SPAWN = new Vec2(1360, 2000);
+    public static readonly PLAYER_SPAWN = new Vec2(112, 2700);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
 
@@ -122,10 +122,10 @@ export default class Level3 extends MBLevel {
     public static readonly SNOWBALL_PATH = "game_assets/art/snowball.png";
 
     public static readonly SNOWMAN_SPAWNS = [
-        new Vec2(704, 3100),
         new Vec2(1168, 2670),
-        new Vec2(1236, 2640),
-        new Vec2(1360, 2200)
+        new Vec2(1344, 2480),
+        new Vec2(1456, 1976),
+        new Vec2(2528, 1520)
     ];
 
     // Predefined spawn points used when Seris uses Glacial Roar to summon snowmen.
@@ -133,19 +133,20 @@ export default class Level3 extends MBLevel {
     // snowmen appear during the roar. Defaults to the same set as the
     // static `SNOWMAN_SPAWNS` above but can be customized for the boss fight.
     public static readonly SERIS_GLACIAL_ROAR_SNOWMAN_SPAWNS = [
-        new Vec2(4192, 740),
-        new Vec2(3744, 740)
+        new Vec2(4160, 740),
+        new Vec2(3800, 740)
     ];
 
     public static readonly WOLF_SPAWNS = [
-        new Vec2(1456, 1976),
-        new Vec2(2712, 2368),
-        new Vec2(3520, 1840)
+        new Vec2(2208, 1940),
+        new Vec2(3520, 1840),
+        new Vec2(2368, 1520)
     ];
 
     public static readonly GUARD_SPAWNS = [
-        new Vec2(1792, 2864),
-        new Vec2(2988, 2240)
+        new Vec2(256, 3080),
+        new Vec2(2832, 1530),
+        new Vec2(3120, 592)
     ];
 
     // Adjust this spawn point to match your arena in Tiled
@@ -160,7 +161,7 @@ export default class Level3 extends MBLevel {
     public static readonly SERIS_MOVE_SPEED = 80;
 
     public static readonly BOSS_NAME = "Seris, the Scaleless";
-    public static readonly BOSS_MAX_HEALTH = 300;
+    public static readonly BOSS_MAX_HEALTH = 50;
 
     // ─────────────────────────────────────────────────────────────────────────
 

@@ -74,6 +74,20 @@ type SerisDiveLandingShockwave = {
     elapsed: number;
 };
 
+type SerisDiveWarningTelegraph = {
+    outerVisual: Rect;
+    coreVisual: Rect;
+    elapsed: number;
+};
+
+type SerisArenaSlamWave = {
+    center: Vec2;
+    halfSize: Vec2;
+    active: boolean;
+    elapsed: number;
+    hasConnected: boolean;
+};
+
 // ─── Combat blackboard ────────────────────────────────────────────────────────
 
 type SerisCombatBlackboard = {
@@ -155,6 +169,26 @@ export default class SerisController extends ControllerAI {
     protected diveLandingKnockbackX!: number;
     protected diveLandingKnockbackY!: number;
     protected diveLandingShockwaveDuration!: number;
+    protected hoverHeightOffset!: number;
+    protected diveWindupDuration!: number;
+    protected diveWindupTimer!: number;
+    protected diveTargetX!: number;
+    protected diveWarningFloorY!: number | null;
+    protected diveWarningTelegraphs!: SerisDiveWarningTelegraph[];
+    protected diveWarningWidth!: number;
+    protected diveWarningPadding!: number;
+    protected diveImpactHalfSize!: Vec2;
+    protected diveImpactDamage!: number;
+    protected arenaSlamWave!: SerisArenaSlamWave | null;
+    protected arenaSlamWaveHalfSize!: Vec2;
+    protected arenaSlamWaveDuration!: number;
+    protected arenaSlamWaveDamage!: number;
+    protected arenaSlamWaveKnockbackX!: number;
+    protected arenaSlamWaveKnockbackY!: number;
+    protected arenaSlamWaveOuterVisual!: Rect | null;
+    protected arenaSlamWaveCoreVisual!: Rect | null;
+    protected airborneGroundedStallTimer!: number;
+    protected airborneGroundedStallDuration!: number;
 
     // ── icicle rain (while airborne) ───────────────────────────────────────
     protected icicleRainCooldownTimer!: number;
@@ -266,12 +300,14 @@ export default class SerisController extends ControllerAI {
         // ── airborne / dive ──
         this.isAirborne = true;
         this.airborneTimer = 0;
-        this.airbornePhaseDuration = 6.0;
-        this.groundPhaseDuration = 5.0;
+        this.airbornePhaseDuration = 3.8;
+        this.groundPhaseDuration = 6.6;
         this.groundPhaseTimer = 0;
         this.diveDescentSpeed = 640;
         this.riseSpeed = 480;
-        this.hoverY = 0;       // set during first aggro frame based on spawn position
+        // Keep a persistent hover target above the arena floor after landings.
+        this.hoverHeightOffset = Math.max(210, this.hitboxHalfSize.y * 3.0);
+        this.hoverY = this.owner.position.y - this.hoverHeightOffset;
         this.arenaFloorY = null;
         this.diveBombQueued = false;
         this.diveLandingShockwaves = [];
@@ -282,14 +318,33 @@ export default class SerisController extends ControllerAI {
         this.diveLandingDamage = 28;
         this.diveLandingKnockbackX = 180;
         this.diveLandingKnockbackY = -380;
-        this.diveLandingShockwaveDuration = 0.65;
+        this.diveLandingShockwaveDuration = 0.95;
+        this.diveWindupDuration = 0.7;
+        this.diveWindupTimer = 0;
+        this.diveTargetX = this.owner.position.x;
+        this.diveWarningFloorY = null;
+        this.diveWarningTelegraphs = [];
+        this.diveWarningWidth = this.hitboxHalfSize.x * 2 + 26;
+        this.diveWarningPadding = 26;
+        this.diveImpactHalfSize = new Vec2(this.hitboxHalfSize.x + 20, this.hitboxHalfSize.y * 0.7);
+        this.diveImpactDamage = 30;
+        this.arenaSlamWave = null;
+        this.arenaSlamWaveHalfSize = new Vec2(220, 18);
+        this.arenaSlamWaveDuration = 0.56;
+        this.arenaSlamWaveDamage = 20;
+        this.arenaSlamWaveKnockbackX = 150;
+        this.arenaSlamWaveKnockbackY = -340;
+        this.arenaSlamWaveOuterVisual = null;
+        this.arenaSlamWaveCoreVisual = null;
+        this.airborneGroundedStallTimer = 0;
+        this.airborneGroundedStallDuration = 0.3;
 
         // ── icicle rain ──
         this.icicleRainCooldownTimer = 0.8; // slight initial delay
-        this.icicleRainCooldownDuration = 2.2;
+        this.icicleRainCooldownDuration = 2.8;
         this.icicleProjectiles = [];
         this.icicleTelegraphs = [];
-        this.icicleTelegraphDuration = 0.9;
+        this.icicleTelegraphDuration = 1.2;
         this.icicleDropSpeed = 520;
         this.icicleHalfSize = new Vec2(8, 18);
         this.icicleDamage = 14;
@@ -302,20 +357,20 @@ export default class SerisController extends ControllerAI {
         // ── glacial roar ──
         this.glacialRoarQueued = false;
         this.glacialRoarTimer = 0;
-        this.glacialRoarWindupDuration = 0.5;
-        this.glacialRoarActiveDuration = 1.8;  // roar SFX / screen shake window
-        this.glacialRoarRecoveryDuration = 0.8;
+        this.glacialRoarWindupDuration = 1.0;
+        this.glacialRoarActiveDuration = 2.4;  // roar SFX / screen shake window
+        this.glacialRoarRecoveryDuration = 1.1;
         this.glacialRoarCooldownTimer = 0;
         this.glacialRoarCooldownDuration = 18.0;
 
         // ── tail lash ──
         this.tailLashQueued = false;
         this.tailLashTimer = 0;
-        this.tailLashWindupDuration = 0.55;
-        this.tailLashActiveDuration = 0.22;
-        this.tailLashRecoveryDuration = 0.6;
+        this.tailLashWindupDuration = 0.9;
+        this.tailLashActiveDuration = 0.34;
+        this.tailLashRecoveryDuration = 1.0;
         this.tailLashCooldownTimer = 0;
-        this.tailLashCooldownDuration = 2.2;
+        this.tailLashCooldownDuration = 2.8;
         this.tailLashDamage = 22;
         this.tailLashKnockbackX = 200;
         this.tailLashKnockbackY = -280;
@@ -327,14 +382,14 @@ export default class SerisController extends ControllerAI {
         this.doubleTailLashQueued = false;
         this.doubleTailLashSecondHitFired = false;
         this.doubleTailLashSecondHitConnected = false;
-        this.doubleTailLashGap = 0.18;
+        this.doubleTailLashGap = 0.34;
 
         // ── ice breath ──
         this.iceBreathQueued = false;
         this.iceBreathTimer = 0;
-        this.iceBreathWindupDuration = 0.7;
-        this.iceBreathActiveDuration = 2.0;
-        this.iceBreathRecoveryDuration = 0.85;
+        this.iceBreathWindupDuration = 1.1;
+        this.iceBreathActiveDuration = 2.5;
+        this.iceBreathRecoveryDuration = 1.1;
         this.iceBreathCooldownTimer = 0;
         this.iceBreathCooldownDuration = 7.0;
         this.iceBreathDamage = 8;         // tick damage
@@ -345,7 +400,7 @@ export default class SerisController extends ControllerAI {
         this.iceBreathHitboxOffset = new Vec2(this.hitboxHalfSize.x + 20, 0);
         this.iceBreathHitboxHalfSize = new Vec2(90, 28);
         this.iceBreathTickTimer = 0;
-        this.iceBreathTickInterval = 0.35;
+        this.iceBreathTickInterval = 0.45;
 
         // ── death ──
         this.deathSequenceStarted = false;
@@ -381,13 +436,16 @@ export default class SerisController extends ControllerAI {
         this.updateActionTimers(deltaT);
         this.updateIcicleProjectiles(deltaT);
         this.updateDiveLandingShockwaves(deltaT);
+        this.updateArenaSlamWave(deltaT);
 
         // ── Death sequence ──────────────────────────────────────────────
         if (this.bossState.isDefeated()) {
             this.resetAllAttacks();
             this.clearAllIcicleTelegraphs();
             this.clearAllIcicleProjectiles();
+            this.clearDiveWarningTelegraphs();
             this.clearDiveLandingShockwaves();
+            this.clearArenaSlamWave();
             this.velocity.x = 0;
             this.velocity.y = 0;
 
@@ -412,8 +470,15 @@ export default class SerisController extends ControllerAI {
         if (!this.bossState.hasFightStarted()) {
             if (this.combatBlackboard.playerInAggroRange) {
                 this.bossState.startFight();
-                // Record hover height relative to spawn so she always returns here
-                this.hoverY = this.owner.position.y;
+                const bodyCenter = this.owner.collisionShape.center;
+                const floorY = this.findFloorTopAtX(bodyCenter.x, bodyCenter.y);
+                if (floorY !== null) {
+                    const groundedCenterY = floorY - this.hitboxHalfSize.y - 1;
+                    this.hoverY = groundedCenterY - this.hoverHeightOffset;
+                    this.arenaFloorY = groundedCenterY;
+                } else {
+                    this.hoverY = this.owner.position.y - this.hoverHeightOffset;
+                }
             } else {
                 this.currentAction = "idle";
                 this.plannedAction = null;
@@ -424,7 +489,11 @@ export default class SerisController extends ControllerAI {
 
         // ── Airborne phase ──────────────────────────────────────────────
         if (this.isAirborne) {
-            this.updateAirbornePhase(deltaT, deltaX);
+            if (this.currentAction === "diveBomb") {
+                this.updateDiveBomb(deltaT);
+            } else {
+                this.updateAirbornePhase(deltaT, deltaX);
+            }
             return;
         }
 
@@ -439,6 +508,8 @@ export default class SerisController extends ControllerAI {
     protected updateAirbornePhase(deltaT: number, deltaX: number): void {
         this.airborneTimer += deltaT;
         this.owner.animation.playIfNotAlready(SerisAnimations.FLYING, true);
+        // Avoid carrying stale grounded state from the ground phase.
+        this.grounded = false;
 
         // Drift horizontally toward the player while airborne
         const direction = deltaX < 0 ? -1 : 1;
@@ -448,7 +519,26 @@ export default class SerisController extends ControllerAI {
         const yDiff = this.hoverY - this.owner.position.y;
         this.velocity.y = Math.sign(yDiff) * Math.min(Math.abs(yDiff) * 4, 120);
 
+        // Airborne movement should not be tile-snapped; use direct movement.
         this.owner.move(this.velocity.scaled(deltaT));
+
+        // Safety: if we remain "airborne" while physically on floor, recover into
+        // ground phase so Seris cannot get stuck in flying state.
+        const bodyCenter = this.owner.collisionShape.center;
+        const floorY = this.findFloorTopAtX(bodyCenter.x, bodyCenter.y);
+        const feetY = bodyCenter.y + this.hitboxHalfSize.y;
+        const touchingFloor =
+            (this.owner.onGround || (floorY !== null && feetY >= floorY - 2)) &&
+            this.velocity.y >= -8;
+        if (touchingFloor) {
+            this.airborneGroundedStallTimer += deltaT;
+            if (this.airborneGroundedStallTimer >= this.airborneGroundedStallDuration) {
+                this.recoverFromAirborneGroundStall(floorY);
+                return;
+            }
+        } else {
+            this.airborneGroundedStallTimer = 0;
+        }
 
         // Periodically drop icicle telegraphs
         this.icicleRainCooldownTimer = Math.max(0, this.icicleRainCooldownTimer - deltaT);
@@ -469,32 +559,103 @@ export default class SerisController extends ControllerAI {
     // ─────────────────────────────────────────────────────────────────────
 
     protected startDiveBomb(): void {
+        if (this.currentAction === "diveBomb") {
+            return;
+        }
+
         this.currentAction = "diveBomb";
-        this.attackPhase = "windup"; // windup = descending
+        this.attackPhase = "windup";
+        this.diveWindupTimer = 0;
+        this.airborneGroundedStallTimer = 0;
+        this.diveTargetX = this.owner.position.x;
+        this.diveWarningFloorY = this.findFloorTopAtX(this.diveTargetX, this.owner.collisionShape.center.y);
         this.airborneTimer = 0;
         this.clearAllIcicleTelegraphs();
-        // Seris tucks wings — use IDLE while plummeting (no dedicated dive frame)
+        this.createDiveWarningTelegraphs();
         this.owner.animation.play(SerisAnimations.FLYING, true);
     }
 
     protected updateDiveBomb(deltaT: number): void {
-        // Descend rapidly
+        if (this.attackPhase === "windup") {
+            this.diveWindupTimer += deltaT;
+            this.updateDiveWarningTelegraphs(deltaT);
+            this.velocity.x = 0;
+            this.velocity.y = 0;
+            this.owner.position.x = this.diveTargetX;
+            if (this.diveWindupTimer >= this.diveWindupDuration) {
+                this.attackPhase = "active";
+                this.clearDiveWarningTelegraphs();
+            }
+            return;
+        }
+
+        // Descend deterministically toward sampled floor to avoid physics-snap misses.
         this.velocity.x = 0;
         this.velocity.y = this.diveDescentSpeed;
-        this.applyGravity(deltaT);
-        this.owner.move(this.resolveMovement(deltaT));
+        this.owner.position.x = this.diveTargetX;
 
-        // Landed when grounded flag is set by resolveMovement
-        if (this.grounded && this.attackPhase === "windup") {
-            this.attackPhase = "active";
-            this.arenaFloorY = this.owner.position.y;
-            this.spawnDiveLandingShockwaves();
-            this.groundPhaseTimer = 0;
-            this.isAirborne = false;
-            this.currentAction = "idle";
-            this.attackPhase = "none";
-            this.owner.animation.play(SerisAnimations.IDLE, true);
+        const bodyCenter = this.owner.collisionShape.center;
+        const floorY = this.findFloorTopAtX(this.diveTargetX, bodyCenter.y) ?? this.diveWarningFloorY;
+        if (floorY === null) {
+            // Fallback if tile probe fails: keep descending and wait for next frame probe.
+            this.owner.position.y += this.diveDescentSpeed * deltaT;
+            return;
         }
+
+        const landingCenterY = floorY - this.hitboxHalfSize.y - 1;
+        const nextCenterY = this.owner.position.y + this.diveDescentSpeed * deltaT;
+        if (nextCenterY >= landingCenterY) {
+            this.owner.position.y = landingCenterY;
+            this.finalizeDiveLanding(floorY);
+            return;
+        }
+
+        this.owner.position.y = nextCenterY;
+    }
+
+    protected recoverFromAirborneGroundStall(floorY: number | null): void {
+        if (floorY !== null) {
+            this.owner.position.y = floorY - this.hitboxHalfSize.y - 1;
+        }
+
+        this.velocity.x = 0;
+        this.velocity.y = 0;
+        this.grounded = true;
+        this.arenaFloorY = this.owner.position.y;
+        this.hoverY = this.arenaFloorY - this.hoverHeightOffset;
+        this.groundPhaseTimer = 0;
+        this.isAirborne = false;
+        this.currentAction = "idle";
+        this.attackPhase = "none";
+        this.diveWindupTimer = 0;
+        this.diveWarningFloorY = null;
+        this.airborneGroundedStallTimer = 0;
+        this.clearDiveWarningTelegraphs();
+        this.owner.animation.play(SerisAnimations.IDLE, true);
+    }
+
+    protected finalizeDiveLanding(floorY: number | null): void {
+        if (floorY !== null) {
+            this.owner.position.y = floorY - this.hitboxHalfSize.y - 1;
+        }
+
+        this.velocity.x = 0;
+        this.velocity.y = 0;
+        this.grounded = true;
+        this.applyDiveImpactDamage();
+        this.arenaFloorY = this.owner.position.y;
+        this.hoverY = this.arenaFloorY - this.hoverHeightOffset;
+        this.spawnDiveLandingShockwaves();
+        this.spawnArenaSlamWave();
+        this.groundPhaseTimer = 0;
+        this.isAirborne = false;
+        this.currentAction = "idle";
+        this.attackPhase = "none";
+        this.diveWindupTimer = 0;
+        this.diveWarningFloorY = null;
+        this.airborneGroundedStallTimer = 0;
+        this.clearDiveWarningTelegraphs();
+        this.owner.animation.play(SerisAnimations.IDLE, true);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -549,11 +710,18 @@ export default class SerisController extends ControllerAI {
         if (this.groundPhaseTimer >= this.groundPhaseDuration && this.currentAction === "idle") {
             this.riseToAir();
         }
+
+        // Fallback: never remain grounded indefinitely if action state gets stuck.
+        if (this.groundPhaseTimer >= this.groundPhaseDuration + 2.0) {
+            this.riseToAir();
+        }
     }
 
     protected riseToAir(): void {
         this.isAirborne = true;
+        this.grounded = false;
         this.airborneTimer = 0;
+        this.airborneGroundedStallTimer = 0;
         this.groundPhaseTimer = 0;
         this.currentAction = "idle";
         this.attackPhase = "none";
@@ -920,6 +1088,11 @@ export default class SerisController extends ControllerAI {
         this.doubleTailLashQueued = false;
         this.iceBreathQueued = false;
         this.diveBombQueued = false;
+        this.diveWindupTimer = 0;
+        this.diveWarningFloorY = null;
+        this.airborneGroundedStallTimer = 0;
+        this.clearDiveWarningTelegraphs();
+        this.clearArenaSlamWave();
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1054,16 +1227,16 @@ export default class SerisController extends ControllerAI {
             position: new Vec2(dropX, markerCenterY),
             size: new Vec2(this.icicleHalfSize.x * 2 + 10, markerHeight)
         });
-        outerVisual.color = new Color(100, 180, 220, 0.14);
-        outerVisual.borderColor = new Color(180, 230, 255, 0.30);
+        outerVisual.color = new Color(30, 74, 126, 0.22);
+        outerVisual.borderColor = new Color(62, 126, 194, 0.48);
         outerVisual.borderWidth = 2;
 
         const coreVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
             position: new Vec2(dropX, markerCenterY),
             size: new Vec2(this.icicleHalfSize.x * 2, markerHeight)
         });
-        coreVisual.color = new Color(160, 220, 255, 0.10);
-        coreVisual.borderColor = new Color(210, 245, 255, 0.22);
+        coreVisual.color = new Color(44, 94, 154, 0.18);
+        coreVisual.borderColor = new Color(88, 148, 212, 0.34);
         coreVisual.borderWidth = 1;
 
         this.icicleTelegraphs.push({
@@ -1082,10 +1255,10 @@ export default class SerisController extends ControllerAI {
             const progress = Math.min(1, telegraph.elapsed / Math.max(this.icicleTelegraphDuration, 0.01));
             const pulse = 0.9 + 0.14 * Math.sin(progress * Math.PI * 6);
 
-            telegraph.outerVisual.color = new Color(100, 180, 220, 0.08 + 0.18 * progress);
-            telegraph.outerVisual.borderColor = new Color(180, 230, 255, 0.20 + 0.28 * progress);
-            telegraph.coreVisual.color = new Color(160, 220, 255, 0.06 + 0.18 * progress);
-            telegraph.coreVisual.borderColor = new Color(210, 245, 255, 0.12 + 0.22 * progress);
+            telegraph.outerVisual.color = new Color(30, 74, 126, 0.14 + 0.26 * progress);
+            telegraph.outerVisual.borderColor = new Color(62, 126, 194, 0.28 + 0.34 * progress);
+            telegraph.coreVisual.color = new Color(44, 94, 154, 0.12 + 0.24 * progress);
+            telegraph.coreVisual.borderColor = new Color(88, 148, 212, 0.20 + 0.28 * progress);
             telegraph.outerVisual.size.x = (this.icicleHalfSize.x * 2 + 10) * pulse;
             telegraph.coreVisual.size.x = this.icicleHalfSize.x * 2 * pulse;
 
@@ -1217,8 +1390,8 @@ export default class SerisController extends ControllerAI {
                     this.diveLandingShockwaveHalfSize.y * 2 + 6
                 )
             });
-            outerVisual.color = new Color(120, 200, 240, 0.22);
-            outerVisual.borderColor = new Color(200, 240, 255, 0.65);
+            outerVisual.color = new Color(24, 68, 122, 0.32);
+            outerVisual.borderColor = new Color(78, 142, 208, 0.72);
             outerVisual.borderWidth = 3;
 
             const coreVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
@@ -1228,8 +1401,8 @@ export default class SerisController extends ControllerAI {
                     this.diveLandingShockwaveHalfSize.y * 2
                 )
             });
-            coreVisual.color = new Color(180, 230, 255, 0.30);
-            coreVisual.borderColor = new Color(230, 250, 255, 0.50);
+            coreVisual.color = new Color(40, 96, 156, 0.30);
+            coreVisual.borderColor = new Color(102, 168, 224, 0.54);
             coreVisual.borderWidth = 1;
 
             this.diveLandingShockwaveOuterVisuals[i] = outerVisual;
@@ -1264,8 +1437,8 @@ export default class SerisController extends ControllerAI {
                     (this.diveLandingShockwaveHalfSize.x * 2 + 16) * widthPulse,
                     this.diveLandingShockwaveHalfSize.y * 2 + 6
                 );
-                outerV.color = new Color(120, 200, 240, 0.22 * (1 - progress * 0.8));
-                outerV.borderColor = new Color(200, 240, 255, Math.max(0.2, 0.65 - progress * 0.38));
+                outerV.color = new Color(24, 68, 122, 0.32 * (1 - progress * 0.8));
+                outerV.borderColor = new Color(78, 142, 208, Math.max(0.25, 0.72 - progress * 0.38));
             }
 
             if (coreV !== null) {
@@ -1274,8 +1447,8 @@ export default class SerisController extends ControllerAI {
                     this.diveLandingShockwaveHalfSize.x * 2 * widthPulse,
                     this.diveLandingShockwaveHalfSize.y * 2
                 );
-                coreV.color = new Color(180, 230, 255, 0.30 * (1 - progress * 0.9));
-                coreV.borderColor = new Color(230, 250, 255, Math.max(0.12, 0.50 - progress * 0.3));
+                coreV.color = new Color(40, 96, 156, 0.30 * (1 - progress * 0.9));
+                coreV.borderColor = new Color(102, 168, 224, Math.max(0.16, 0.54 - progress * 0.3));
             }
 
             this.tryApplyDiveLandingShockwaveDamage(shockwave);
@@ -1334,6 +1507,191 @@ export default class SerisController extends ControllerAI {
         this.diveLandingShockwaveCoreVisuals = [null, null];
     }
 
+    protected spawnArenaSlamWave(): void {
+        this.clearArenaSlamWave();
+        const scene = this.owner.getScene();
+        const tileSize = this.walls.getTileSize();
+        const mapDims = this.walls.getDimensions();
+        const worldWidth = mapDims.x * tileSize.x * this.walls.scale.x;
+        const groundY = this.owner.position.y + this.hitboxHalfSize.y - 8;
+        const halfWidth = Math.max(this.arenaSlamWaveHalfSize.x, worldWidth * 0.5);
+
+        this.arenaSlamWave = {
+            center: new Vec2(worldWidth * 0.5, groundY - this.arenaSlamWaveHalfSize.y),
+            halfSize: new Vec2(halfWidth, this.arenaSlamWaveHalfSize.y),
+            active: true,
+            elapsed: 0,
+            hasConnected: false
+        };
+
+        this.arenaSlamWaveOuterVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: this.arenaSlamWave.center.clone(),
+            size: new Vec2(this.arenaSlamWave.halfSize.x * 2 + 18, this.arenaSlamWave.halfSize.y * 2 + 8)
+        });
+        this.arenaSlamWaveOuterVisual.color = new Color(22, 62, 118, 0.30);
+        this.arenaSlamWaveOuterVisual.borderColor = new Color(76, 142, 212, 0.74);
+        this.arenaSlamWaveOuterVisual.borderWidth = 3;
+
+        this.arenaSlamWaveCoreVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: this.arenaSlamWave.center.clone(),
+            size: new Vec2(this.arenaSlamWave.halfSize.x * 2, this.arenaSlamWave.halfSize.y * 2)
+        });
+        this.arenaSlamWaveCoreVisual.color = new Color(38, 96, 162, 0.28);
+        this.arenaSlamWaveCoreVisual.borderColor = new Color(106, 172, 228, 0.54);
+        this.arenaSlamWaveCoreVisual.borderWidth = 1;
+    }
+
+    protected updateArenaSlamWave(deltaT: number): void {
+        if (this.arenaSlamWave === null || !this.arenaSlamWave.active) {
+            return;
+        }
+
+        this.arenaSlamWave.elapsed += deltaT;
+        const progress = Math.min(1, this.arenaSlamWave.elapsed / Math.max(this.arenaSlamWaveDuration, 0.01));
+        const widthPulse = 1 + 0.06 * Math.sin(progress * Math.PI * 8);
+
+        if (this.arenaSlamWaveOuterVisual !== null) {
+            this.arenaSlamWaveOuterVisual.position.copy(this.arenaSlamWave.center);
+            this.arenaSlamWaveOuterVisual.size.x = (this.arenaSlamWave.halfSize.x * 2 + 18) * widthPulse;
+            this.arenaSlamWaveOuterVisual.color = new Color(22, 62, 118, 0.30 * (1 - progress * 0.9));
+            this.arenaSlamWaveOuterVisual.borderColor = new Color(76, 142, 212, Math.max(0.22, 0.74 - progress * 0.5));
+        }
+
+        if (this.arenaSlamWaveCoreVisual !== null) {
+            this.arenaSlamWaveCoreVisual.position.copy(this.arenaSlamWave.center);
+            this.arenaSlamWaveCoreVisual.size.x = (this.arenaSlamWave.halfSize.x * 2) * widthPulse;
+            this.arenaSlamWaveCoreVisual.color = new Color(38, 96, 162, 0.28 * (1 - progress * 0.95));
+            this.arenaSlamWaveCoreVisual.borderColor = new Color(106, 172, 228, Math.max(0.14, 0.54 - progress * 0.35));
+        }
+
+        this.tryApplyArenaSlamWaveDamage();
+
+        if (this.arenaSlamWave.elapsed >= this.arenaSlamWaveDuration) {
+            this.clearArenaSlamWave();
+        }
+    }
+
+    protected tryApplyArenaSlamWaveDamage(): void {
+        if (
+            this.arenaSlamWave === null ||
+            !this.arenaSlamWave.active ||
+            this.arenaSlamWave.hasConnected ||
+            !this.player.hasPhysics
+        ) {
+            return;
+        }
+
+        const shockwaveShape = new AABB(
+            this.arenaSlamWave.center.clone(),
+            this.arenaSlamWave.halfSize.clone()
+        );
+        if (!shockwaveShape.overlaps(this.player.collisionShape.getBoundingRect())) {
+            return;
+        }
+
+        const playerController = this.player.ai as PlayerController;
+        if (playerController !== undefined) {
+            const knockDirection = this.player.position.x < this.owner.position.x ? -1 : 1;
+            playerController.applyDamage(this.arenaSlamWaveDamage, new Vec2(
+                this.arenaSlamWaveKnockbackX * knockDirection,
+                this.arenaSlamWaveKnockbackY
+            ));
+        }
+
+        this.arenaSlamWave.hasConnected = true;
+    }
+
+    protected clearArenaSlamWave(): void {
+        if (this.arenaSlamWaveOuterVisual !== null) {
+            this.arenaSlamWaveOuterVisual.destroy();
+            this.arenaSlamWaveOuterVisual = null;
+        }
+
+        if (this.arenaSlamWaveCoreVisual !== null) {
+            this.arenaSlamWaveCoreVisual.destroy();
+            this.arenaSlamWaveCoreVisual = null;
+        }
+
+        this.arenaSlamWave = null;
+    }
+
+    protected createDiveWarningTelegraphs(): void {
+        this.clearDiveWarningTelegraphs();
+        const scene = this.owner.getScene();
+        const floorY = this.diveWarningFloorY ?? this.arenaFloorY ?? (this.owner.position.y + this.hoverHeightOffset);
+        const markerHeight = Math.max(56, floorY - this.owner.position.y + this.hitboxHalfSize.y + this.diveWarningPadding);
+        const centerY = this.owner.position.y + markerHeight * 0.5;
+        const centerX = this.diveTargetX;
+
+        const outerVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: new Vec2(centerX, centerY),
+            size: new Vec2(this.diveWarningWidth + 16, markerHeight)
+        });
+        outerVisual.color = new Color(18, 48, 92, 0.24);
+        outerVisual.borderColor = new Color(68, 136, 204, 0.58);
+        outerVisual.borderWidth = 3;
+
+        const coreVisual = <Rect>scene.add.graphic(GraphicType.RECT, "PRIMARY", {
+            position: new Vec2(centerX, centerY),
+            size: new Vec2(this.diveWarningWidth, markerHeight)
+        });
+        coreVisual.color = new Color(30, 78, 132, 0.18);
+        coreVisual.borderColor = new Color(92, 164, 224, 0.42);
+        coreVisual.borderWidth = 1;
+
+        this.diveWarningTelegraphs.push({
+            outerVisual,
+            coreVisual,
+            elapsed: 0
+        });
+    }
+
+    protected updateDiveWarningTelegraphs(deltaT: number): void {
+        for (const warning of this.diveWarningTelegraphs) {
+            warning.elapsed += deltaT;
+            const progress = Math.min(1, warning.elapsed / Math.max(this.diveWindupDuration, 0.01));
+            const pulse = 0.9 + 0.15 * Math.sin(progress * Math.PI * 8);
+            warning.outerVisual.color = new Color(18, 48, 92, 0.18 + 0.28 * progress);
+            warning.outerVisual.borderColor = new Color(68, 136, 204, 0.30 + 0.55 * progress);
+            warning.coreVisual.color = new Color(30, 78, 132, 0.12 + 0.22 * progress);
+            warning.coreVisual.borderColor = new Color(92, 164, 224, 0.20 + 0.40 * progress);
+            warning.outerVisual.size.x = (this.diveWarningWidth + 16) * pulse;
+            warning.coreVisual.size.x = this.diveWarningWidth * pulse;
+        }
+    }
+
+    protected clearDiveWarningTelegraphs(): void {
+        for (const warning of this.diveWarningTelegraphs) {
+            warning.outerVisual.destroy();
+            warning.coreVisual.destroy();
+        }
+        this.diveWarningTelegraphs = [];
+    }
+
+    protected applyDiveImpactDamage(): void {
+        if (!this.player.hasPhysics) {
+            return;
+        }
+
+        const impactCenter = new Vec2(
+            this.owner.position.x,
+            this.owner.position.y + this.hitboxHalfSize.y - this.diveImpactHalfSize.y
+        );
+        const impactShape = new AABB(impactCenter, this.diveImpactHalfSize.clone());
+        if (!impactShape.overlaps(this.player.collisionShape.getBoundingRect())) {
+            return;
+        }
+
+        const playerController = this.player.ai as PlayerController;
+        if (playerController !== undefined) {
+            const knockDir = this.player.position.x < this.owner.position.x ? -1 : 1;
+            playerController.applyDamage(this.diveImpactDamage, new Vec2(
+                this.diveLandingKnockbackX * knockDir,
+                this.diveLandingKnockbackY
+            ));
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // Combat blackboard
     // ─────────────────────────────────────────────────────────────────────
@@ -1351,6 +1709,44 @@ export default class SerisController extends ControllerAI {
         this.combatBlackboard.playerInMeleeRange = absDeltaX <= 80;
         this.combatBlackboard.playerInBreathRange = absDeltaX <= 200;
         this.combatBlackboard.playerBelowSeris = deltaY > 20;
+    }
+
+    protected findFloorTopAtX(worldX: number, startY: number): number | null {
+        const tileSize = this.walls.getTileSize();
+        const worldHeight = this.walls.getDimensions().y;
+        const col = this.walls.getColRowAt(new Vec2(worldX, startY)).x;
+        const startRow = Math.max(0, this.walls.getColRowAt(new Vec2(worldX, startY)).y - 3);
+        const tileScaleY = this.walls.scale.y;
+
+        for (let row = startRow; row < worldHeight; row++) {
+            if (!this.walls.isTileCollidable(col, row)) {
+                continue;
+            }
+
+            return row * tileSize.y * tileScaleY;
+        }
+
+        // Fallback: choose the collidable tile-top nearest to current Y in this column.
+        let nearest: number | null = null;
+        let nearestDist = Number.POSITIVE_INFINITY;
+        for (let row = 0; row < worldHeight; row++) {
+            if (!this.walls.isTileCollidable(col, row)) {
+                continue;
+            }
+
+            const tileTopY = row * tileSize.y * tileScaleY;
+            const dist = Math.abs(tileTopY - startY);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = tileTopY;
+            }
+        }
+
+        if (nearest !== null) {
+            return nearest;
+        }
+
+        return null;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1404,7 +1800,7 @@ export default class SerisController extends ControllerAI {
                         continue;
                     }
 
-                    const tileTopY   = row * tileSize.y;
+                    const tileTopY   = row * tileSize.y * this.walls.scale.y;
                     const snapMoveY  = tileTopY - this.hitboxHalfSize.y - 1 - currentBodyCenter.y;
                     const snapAbs    = Math.abs(snapMoveY);
                     if (snapAbs < bestSnapAbs) {

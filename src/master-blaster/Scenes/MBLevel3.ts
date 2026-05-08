@@ -100,10 +100,10 @@ export default class Level3 extends MBLevel {
     public static readonly ICICLE_PATH = "game_assets/art/icicle.png";
 
     // Adjust this spawn point to match your arena in Tiled
-    public static readonly SERIS_SPAWN = new Vec2(4000, 800);
-    public static readonly SERIS_SCALE = new Vec2(0.4, 0.4);
+    public static readonly SERIS_SPAWN = new Vec2(4000, 770);
+    public static readonly SERIS_SCALE = new Vec2(0.52, 0.52);
     // Half-size of Seris's collision box BEFORE scale is applied
-    public static readonly SERIS_HITBOX_HALF_SIZE = new Vec2(80, 80);
+    public static readonly SERIS_HITBOX_HALF_SIZE = new Vec2(104, 104);
     public static readonly SERIS_VISUAL_OFFSET_Y = 0;
 
     public static readonly SERIS_AGGRO_RANGE = 260;
@@ -512,8 +512,8 @@ export default class Level3 extends MBLevel {
             Level3.SERIS_HITBOX_HALF_SIZE.y * Level3.SERIS_SCALE.y
         );
 
-        // 4. Snap her feet to the floor at spawn (she'll immediately go airborne)
-        this.placeBossOnFloor(scaledBossHitbox);
+        // 4. Seris starts airborne, so do not floor-snap at spawn.
+        // Floor contact is handled during dive-bomb/landing in the controller.
 
         // 5. Add physics — same call signature as Vorrath
         this.level3BossSprite.addPhysics(

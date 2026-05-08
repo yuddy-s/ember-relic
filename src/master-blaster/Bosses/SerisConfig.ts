@@ -40,7 +40,7 @@ export const DEFAULT_SERIS_TUNING: SerisTuning = {
     glacialRoarActiveDuration: 2.6,
     glacialRoarRecoveryDuration: 1.2,
     glacialRoarCooldownDuration: 18.0,
-    tailLashWindupDuration: 0.9,
+    tailLashWindupDuration: 1.1,
     tailLashActiveDuration: 0.36,
     tailLashRecoveryDuration: 1.0,
     tailLashCooldownDuration: 2.8,

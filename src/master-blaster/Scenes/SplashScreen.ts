@@ -17,7 +17,7 @@ export default class SplashScreen extends Scene {
     public static readonly SPLASH_TEXT_KEY = "WORDS";
     public static readonly SPLASH_TEXT_PATH = "game_assets/art/ClickToContinue.jpeg";
     public static readonly MUSIC_KEY = "SPLASH_MUSIC";
-    public static readonly MUSIC_PATH = "game_assets/music/MB_menu_music.mp3";
+    public static readonly MUSIC_PATH = "game_assets/music/main_Menu_music.wav";
 
     public loadScene(): void {
         this.load.image(SplashScreen.SPLASH_KEY, SplashScreen.SPLASH_PATH);

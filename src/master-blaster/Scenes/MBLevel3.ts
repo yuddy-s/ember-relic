@@ -115,7 +115,7 @@ export default class Level3 extends MBLevel {
 
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
-    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/MB_level_music.wav";
+    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/level3_music.wav";
     public static readonly JUMP_AUDIO_KEY = "PLAYER_JUMP";
     public static readonly JUMP_AUDIO_PATH = "game_assets/sounds/jump.wav";
     public static readonly TILE_DESTROYED_KEY = "TILE_DESTROYED";

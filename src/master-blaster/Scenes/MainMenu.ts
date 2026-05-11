@@ -20,7 +20,7 @@ export default class MainMenu extends Scene {
     public static readonly LOGO_KEY = "MAIN_MENU_LOGO";
     public static readonly LOGO_PATH = "game_assets/art/Logo.png";
     public static readonly MUSIC_KEY = "MAIN_MENU_MUSIC";
-    public static readonly MUSIC_PATH = "game_assets/music/MB_menu_music.mp3";
+    public static readonly MUSIC_PATH = "game_assets/music/main_Menu_music.wav";
 
     public loadScene(): void {
         // Load the menu logo

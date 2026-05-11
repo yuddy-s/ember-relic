@@ -150,13 +150,22 @@ export default class Level2 extends MBLevel {
     public static readonly GREEN_RIGHT_PORTAL_FRAME = 7;
 
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
-    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/MB_level2_music.wav";
+    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/level2_music.wav";
 
     public static readonly JUMP_AUDIO_KEY = "PLAYER_JUMP";
     public static readonly JUMP_AUDIO_PATH = "game_assets/sounds/jump.wav";
 
     public static readonly TILE_DESTROYED_KEY = "TILE_DESTROYED";
     public static readonly TILE_DESTROYED_PATH = "game_assets/sounds/switch.wav";
+
+    public static readonly DASH_AUDIO_KEY = "PLAYER_DASH";
+    public static readonly DASH_AUDIO_PATH = "game_assets/sounds/dash.wav";
+
+    public static readonly ATTACK_AUDIO_KEY = "PLAYER_ATTACK";
+    public static readonly ATTACK_AUDIO_PATH = "game_assets/sounds/attack.wav";
+
+    public static readonly DAMAGE_AUDIO_KEY = "PLAYER_DAMAGE";
+    public static readonly DAMAGE_AUDIO_PATH = "game_assets/sounds/taking_damage.wav";
 
     public static readonly DYING_AUDIO_KEY = "DYING_AUDIO";
     public static readonly DYING_AUDIO_PATH = "game_assets/sounds/dying.wav"
@@ -181,6 +190,9 @@ export default class Level2 extends MBLevel {
         this.levelMusicKey = Level2.LEVEL_MUSIC_KEY
         this.jumpAudioKey = Level2.JUMP_AUDIO_KEY;
         this.tileDestroyedAudioKey = Level2.TILE_DESTROYED_KEY;
+        this.dashAudioKey = Level2.DASH_AUDIO_KEY;
+        this.attackAudioKey = Level2.ATTACK_AUDIO_KEY;
+        this.damageAudioKey = Level2.DAMAGE_AUDIO_KEY;
         this.dyingAudioKey = Level2.DYING_AUDIO_KEY;
 
         // Level end size and position
@@ -221,6 +233,9 @@ export default class Level2 extends MBLevel {
         // Audio and music
         this.load.audio(this.levelMusicKey, Level2.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level2.JUMP_AUDIO_PATH);
+        this.load.audio(this.dashAudioKey, Level2.DASH_AUDIO_PATH);
+        this.load.audio(this.attackAudioKey, Level2.ATTACK_AUDIO_PATH);
+        this.load.audio(this.damageAudioKey, Level2.DAMAGE_AUDIO_PATH);
         this.load.audio(this.tileDestroyedAudioKey, Level2.TILE_DESTROYED_PATH);
         this.load.audio(this.dyingAudioKey, Level2.DYING_AUDIO_PATH);
     }

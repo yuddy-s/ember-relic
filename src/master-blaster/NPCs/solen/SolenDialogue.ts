@@ -47,6 +47,7 @@ const SOLEN_STAGE_CONVERSATIONS: ReadonlyArray<SolenConversation> = Object.freez
     {
         id: "solen_after_first_boss",
         promptText: "[E] Speak with Solen",
+        rewardUpgradeId: UpgradeId.FUR_COAT,
         stageIndex: 1,
         advanceStageOnComplete: true,
         pages: Object.freeze([

@@ -824,21 +824,6 @@ export default class Level2 extends MBLevel {
             return;
         }
 
-        if(this.furCoatGrantedFromBoss || MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
-            this.furCoatGrantedFromBoss = true;
-            this.showRevivalTotemBossReward();
-            return;
-        }
-
-        if(this.furCoatRewardShown){
-            return;
-        }
-
-        this.furCoatRewardShown = true;
-        this.showUpgradeRewardPopup(UpgradeId.FUR_COAT, () => {
-            this.grantUpgrade(UpgradeId.FUR_COAT);
-            this.furCoatGrantedFromBoss = true;
-            this.showRevivalTotemBossReward();
-        });
+        this.showRevivalTotemBossReward();
     }
 }

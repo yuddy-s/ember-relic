@@ -124,6 +124,8 @@ type SerisCombatBlackboard = {
  *  initializeAI → update → selectNextAction → start* → update* → reset*
  */
 export default class SerisController extends ControllerAI {
+    protected static readonly DAMAGE_SCALE: number = 0.7;
+
     protected owner!: MBAnimatedSprite;
     protected bossState!: Level3Boss;
     protected player!: AnimatedSprite;
@@ -343,7 +345,7 @@ export default class SerisController extends ControllerAI {
         this.diveLandingShockwaveHalfSize = new Vec2(28, 14);
         this.diveLandingShockwaveOuterVisuals = [null, null];
         this.diveLandingShockwaveCoreVisuals = [null, null];
-        this.diveLandingDamage = 14;
+        this.diveLandingDamage = this.scaleDamage(14);
         this.diveLandingKnockbackX = 180;
         this.diveLandingKnockbackY = -380;
         this.diveLandingShockwaveDuration = 0.95;
@@ -355,11 +357,11 @@ export default class SerisController extends ControllerAI {
         this.diveWarningWidth = this.hitboxHalfSize.x * 2 + 26;
         this.diveWarningPadding = 26;
         this.diveImpactHalfSize = new Vec2(this.hitboxHalfSize.x + 20, this.hitboxHalfSize.y * 0.7);
-        this.diveImpactDamage = 15;
+        this.diveImpactDamage = this.scaleDamage(15);
         this.arenaSlamWave = null;
         this.arenaSlamWaveHalfSize = new Vec2(220, 18);
         this.arenaSlamWaveDuration = 0.56;
-        this.arenaSlamWaveDamage = 20;
+        this.arenaSlamWaveDamage = this.scaleDamage(20);
         this.arenaSlamWaveKnockbackX = 150;
         this.arenaSlamWaveKnockbackY = -340;
         this.arenaSlamWaveOuterVisual = null;
@@ -375,7 +377,7 @@ export default class SerisController extends ControllerAI {
         this.icicleTelegraphDuration = 1.2;
         this.icicleDropSpeed = 520;
         this.icicleHalfSize = new Vec2(8, 18);
-        this.icicleDamage = 30;
+        this.icicleDamage = this.scaleDamage(30);
         this.icicleKnockbackX = 60;
         this.icicleKnockbackY = -160;
         this.icicleGravity = 0;    // icicles fall at constant speed — feel more deliberate
@@ -399,7 +401,7 @@ export default class SerisController extends ControllerAI {
         this.tailLashRecoveryDuration = 1.0;
         this.tailLashCooldownTimer = 0;
         this.tailLashCooldownDuration = 2.8;
-        this.tailLashDamage = 15;
+        this.tailLashDamage = this.scaleDamage(15);
         this.tailLashKnockbackX = 200;
         this.tailLashKnockbackY = -280;
         this.tailLashHasConnected = false;
@@ -420,7 +422,7 @@ export default class SerisController extends ControllerAI {
         this.iceBreathRecoveryDuration = 1.1;
         this.iceBreathCooldownTimer = 0;
         this.iceBreathCooldownDuration = 7.0;
-        this.iceBreathDamage = 5;         // tick damage
+        this.iceBreathDamage = this.scaleDamage(5);         // tick damage
         this.iceBreathKnockbackX = 40;
         this.iceBreathKnockbackY = -40;
         this.iceBreathHasConnected = false;
@@ -769,7 +771,7 @@ export default class SerisController extends ControllerAI {
                         const pc = this.player.ai as PlayerController | undefined;
                         if (pc !== undefined) {
                             const dir = this.player.position.x < this.owner.position.x ? -1 : 1;
-                            pc.applyDamage(10, new Vec2(this.playerSlideOffKnockbackX * dir, this.playerSlideOffKnockbackY));
+                            pc.applyDamage(this.scaleDamage(10), new Vec2(this.playerSlideOffKnockbackX * dir, this.playerSlideOffKnockbackY));
                         }
                         this.playerOnTopTimer = 0;
                     }
@@ -2023,6 +2025,10 @@ export default class SerisController extends ControllerAI {
     // ─────────────────────────────────────────────────────────────────────
     // Physics helpers (identical pattern to VorrathController)
     // ─────────────────────────────────────────────────────────────────────
+
+    protected scaleDamage(amount: number): number {
+        return Math.max(1, Math.round(amount * SerisController.DAMAGE_SCALE));
+    }
 
     protected applyGravity(deltaT: number): void {
         if (this.owner.onGround && this.velocity.y > 0) {

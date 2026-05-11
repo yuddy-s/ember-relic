@@ -95,10 +95,19 @@ export default class HubLevel extends MBLevel {
     public static readonly LEVEL_ZOOM = 2.6;
 
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
-    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/MB_level_music.wav";
+    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/hub_level_music.wav";
 
     public static readonly JUMP_AUDIO_KEY = "PLAYER_JUMP";
     public static readonly JUMP_AUDIO_PATH = "game_assets/sounds/jump.wav";
+
+    public static readonly DASH_AUDIO_KEY = "PLAYER_DASH";
+    public static readonly DASH_AUDIO_PATH = "game_assets/sounds/dash.wav";
+
+    public static readonly ATTACK_AUDIO_KEY = "PLAYER_ATTACK";
+    public static readonly ATTACK_AUDIO_PATH = "game_assets/sounds/attack.wav";
+
+    public static readonly DAMAGE_AUDIO_KEY = "PLAYER_DAMAGE";
+    public static readonly DAMAGE_AUDIO_PATH = "game_assets/sounds/taking_damage.wav";
 
     public static readonly TILE_DESTROYED_KEY = "TILE_DESTROYED";
     public static readonly TILE_DESTROYED_PATH = "game_assets/sounds/switch.wav";
@@ -129,6 +138,9 @@ export default class HubLevel extends MBLevel {
 
         this.levelMusicKey = HubLevel.LEVEL_MUSIC_KEY;
         this.jumpAudioKey = HubLevel.JUMP_AUDIO_KEY;
+        this.dashAudioKey = HubLevel.DASH_AUDIO_KEY;
+        this.attackAudioKey = HubLevel.ATTACK_AUDIO_KEY;
+        this.damageAudioKey = HubLevel.DAMAGE_AUDIO_KEY;
         this.tileDestroyedAudioKey = HubLevel.TILE_DESTROYED_KEY;
         this.dyingAudioKey = HubLevel.DYING_AUDIO_KEY;
 
@@ -154,6 +166,9 @@ export default class HubLevel extends MBLevel {
         this.load.image(HubLevel.CAMPFIRE_IMAGE_KEY, HubLevel.CAMPFIRE_IMAGE_PATH);
         this.load.audio(this.levelMusicKey, HubLevel.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, HubLevel.JUMP_AUDIO_PATH);
+        this.load.audio(this.dashAudioKey, HubLevel.DASH_AUDIO_PATH);
+        this.load.audio(this.attackAudioKey, HubLevel.ATTACK_AUDIO_PATH);
+        this.load.audio(this.damageAudioKey, HubLevel.DAMAGE_AUDIO_PATH);
         this.load.audio(this.tileDestroyedAudioKey, HubLevel.TILE_DESTROYED_PATH);
         this.load.audio(this.dyingAudioKey, HubLevel.DYING_AUDIO_PATH);
         this.load.image(HubLevel.BACKGROUND_IMAGE_KEY, HubLevel.BACKGROUND_IMAGE_PATH);
@@ -163,6 +178,9 @@ export default class HubLevel extends MBLevel {
         this.resourceManager.keepSpritesheet(this.playerSpriteKey);
         this.resourceManager.keepSpritesheet(SOLEN_SPRITE_KEY);
         this.resourceManager.keepAudio(this.jumpAudioKey);
+        this.resourceManager.keepAudio(this.dashAudioKey);
+        this.resourceManager.keepAudio(this.attackAudioKey);
+        this.resourceManager.keepAudio(this.damageAudioKey);
         this.resourceManager.keepAudio(this.dyingAudioKey);
         this.resourceManager.keepAudio(this.tileDestroyedAudioKey);
     }

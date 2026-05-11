@@ -67,6 +67,15 @@ export default class Level1 extends MBLevel {
     public static readonly JUMP_AUDIO_KEY = "PLAYER_JUMP";
     public static readonly JUMP_AUDIO_PATH = "game_assets/sounds/jump.wav";
 
+    public static readonly DASH_AUDIO_KEY = "PLAYER_DASH";
+    public static readonly DASH_AUDIO_PATH = "game_assets/sounds/dash.wav";
+
+    public static readonly ATTACK_AUDIO_KEY = "PLAYER_ATTACK";
+    public static readonly ATTACK_AUDIO_PATH = "game_assets/sounds/attack.wav";
+
+    public static readonly DAMAGE_AUDIO_KEY = "PLAYER_DAMAGE";
+    public static readonly DAMAGE_AUDIO_PATH = "game_assets/sounds/taking_damage.wav";
+
     public static readonly TILE_DESTROYED_KEY = "TILE_DESTROYED";
     public static readonly TILE_DESTROYED_PATH = "game_assets/sounds/switch.wav";
 
@@ -95,6 +104,9 @@ export default class Level1 extends MBLevel {
         // Music and sound
         this.levelMusicKey = Level1.LEVEL_MUSIC_KEY
         this.jumpAudioKey = Level1.JUMP_AUDIO_KEY;
+        this.dashAudioKey = Level1.DASH_AUDIO_KEY;
+        this.attackAudioKey = Level1.ATTACK_AUDIO_KEY;
+        this.damageAudioKey = Level1.DAMAGE_AUDIO_KEY;
         this.tileDestroyedAudioKey = Level1.TILE_DESTROYED_KEY;
         this.dyingAudioKey = Level1.DYING_AUDIO_KEY;
 
@@ -130,6 +142,9 @@ export default class Level1 extends MBLevel {
         // Audio and music
         this.load.audio(this.levelMusicKey, Level1.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level1.JUMP_AUDIO_PATH);
+        this.load.audio(this.dashAudioKey, Level1.DASH_AUDIO_PATH);
+        this.load.audio(this.attackAudioKey, Level1.ATTACK_AUDIO_PATH);
+        this.load.audio(this.damageAudioKey, Level1.DAMAGE_AUDIO_PATH);
         this.load.audio(this.tileDestroyedAudioKey, Level1.TILE_DESTROYED_PATH);
         this.load.audio(this.dyingAudioKey, Level1.DYING_AUDIO_PATH);
     }
@@ -142,6 +157,9 @@ export default class Level1 extends MBLevel {
         this.resourceManager.keepSpritesheet(this.playerSpriteKey);
 
         this.resourceManager.keepAudio(this.jumpAudioKey);
+        this.resourceManager.keepAudio(this.dashAudioKey);
+        this.resourceManager.keepAudio(this.attackAudioKey);
+        this.resourceManager.keepAudio(this.damageAudioKey);
         this.resourceManager.keepAudio(this.dyingAudioKey);
         this.resourceManager.keepAudio(this.tileDestroyedAudioKey);
 

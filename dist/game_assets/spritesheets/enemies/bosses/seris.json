@@ -10,90 +10,90 @@
     {
       "name": "IDLE",
       "frames": [
-        { "index": 0, "duration": 42 },
-        { "index": 1, "duration": 42 },
-        { "index": 2, "duration": 125 },
-        { "index": 3, "duration": 42 },
-        { "index": 4, "duration": 42 },
-        { "index": 5, "duration": 42 },
-        { "index": 6, "duration": 42 }
+        { "index": 0, "duration": 18 },
+        { "index": 1, "duration": 18 },
+        { "index": 2, "duration": 52 },
+        { "index": 3, "duration": 18 },
+        { "index": 4, "duration": 18 },
+        { "index": 5, "duration": 18 },
+        { "index": 6, "duration": 18 }
       ]
     },
     {
       "name": "WALK",
       "repeat": true,
       "frames": [
-        { "index": 7, "duration": 33 },
-        { "index": 8, "duration": 33 }
+        { "index": 7, "duration": 14 },
+        { "index": 8, "duration": 14 }
       ]
     },
     {
       "name": "GLACIAL_ROAR",
       "frames": [
-        { "index": 9,  "duration": 13 },
-        { "index": 10, "duration": 31 },
-        { "index": 11, "duration": 40 },
-        { "index": 12, "duration": 30 },
-        { "index": 13, "duration": 20 },
-        { "index": 14, "duration": 20 },
-        { "index": 15, "duration": 63 },
-        { "index": 16, "duration": 42 },
-        { "index": 17, "duration": 350 },
-        { "index": 18, "duration": 50 },
-        { "index": 19, "duration": 33 },
-        { "index": 20, "duration": 17 },
-        { "index": 21, "duration": 13 }
+        { "index": 9,  "duration": 5 },
+        { "index": 10, "duration": 13 },
+        { "index": 11, "duration": 17 },
+        { "index": 12, "duration": 13 },
+        { "index": 13, "duration": 8 },
+        { "index": 14, "duration": 8 },
+        { "index": 15, "duration": 26 },
+        { "index": 16, "duration": 18 },
+        { "index": 17, "duration": 146 },
+        { "index": 18, "duration": 21 },
+        { "index": 19, "duration": 14 },
+        { "index": 20, "duration": 7 },
+        { "index": 21, "duration": 5 }
       ]
     },
     {
       "name": "DYING",
       "frames": [
-        { "index": 22, "duration": 31 },
-        { "index": 23, "duration": 83 },
-        { "index": 24, "duration": 104 }
+        { "index": 22, "duration": 13 },
+        { "index": 23, "duration": 35 },
+        { "index": 24, "duration": 43 }
       ]
     },
     {
       "name": "TAIL_LASH",
       "frames": [
-        { "index": 25, "duration": 42 },
-        { "index": 26, "duration": 73 },
-        { "index": 27, "duration": 63 },
-        { "index": 28, "duration": 42 }
+        { "index": 25, "duration": 18 },
+        { "index": 26, "duration": 30 },
+        { "index": 27, "duration": 26 },
+        { "index": 28, "duration": 18 }
       ]
     },
     {
       "name": "DOUBLE_TAIL_LASH",
       "frames": [
-        { "index": 25, "duration": 42 },
-        { "index": 26, "duration": 73 },
-        { "index": 27, "duration": 63 },
-        { "index": 28, "duration": 42 },
-        { "index": 29, "duration": 42 },
-        { "index": 30, "duration": 63 },
-        { "index": 31, "duration": 73 },
-        { "index": 32, "duration": 42 }
+        { "index": 25, "duration": 18 },
+        { "index": 26, "duration": 30 },
+        { "index": 27, "duration": 26 },
+        { "index": 28, "duration": 18 },
+        { "index": 29, "duration": 18 },
+        { "index": 30, "duration": 26 },
+        { "index": 31, "duration": 30 },
+        { "index": 32, "duration": 18 }
       ]
     },
     {
       "name": "ICE_BREATH",
       "frames": [
-        { "index": 33, "duration": 13 },
-        { "index": 34, "duration": 31 },
-        { "index": 35, "duration": 63 },
-        { "index": 36, "duration": 71 },
-        { "index": 37, "duration": 71 },
-        { "index": 38, "duration": 63 },
-        { "index": 39, "duration": 33 },
-        { "index": 40, "duration": 13 }
+        { "index": 33, "duration": 5 },
+        { "index": 34, "duration": 13 },
+        { "index": 35, "duration": 26 },
+        { "index": 36, "duration": 30 },
+        { "index": 37, "duration": 30 },
+        { "index": 38, "duration": 26 },
+        { "index": 39, "duration": 14 },
+        { "index": 40, "duration": 5 }
       ]
     },
     {
       "name": "FLYING",
       "repeat": true,
       "frames": [
-        { "index": 41, "duration": 33 },
-        { "index": 42, "duration": 33 }
+        { "index": 41, "duration": 14 },
+        { "index": 42, "duration": 14 }
       ]
     }
   ]

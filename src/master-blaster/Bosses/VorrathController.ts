@@ -106,6 +106,8 @@ type VorrathGroundImpactHitbox = {
  * can exist in the arena before the full attack/GOAP pass is built.
  */
 export default class VorrathController extends ControllerAI {
+    protected static readonly DAMAGE_SCALE: number = 0.7;
+
     protected owner!: MBAnimatedSprite;
     protected bossState!: Level2Boss;
     protected player!: AnimatedSprite;
@@ -247,6 +249,9 @@ export default class VorrathController extends ControllerAI {
     protected deathPoseSettled!: boolean;
 
     public initializeAI(owner: MBAnimatedSprite, options: VorrathControllerOptions): void {
+        const scaledDamage = (amount: number): number =>
+            Math.max(1, Math.round(amount * VorrathController.DAMAGE_SCALE));
+
         this.owner = owner;
         this.bossState = options.bossState;
         this.player = options.player;
@@ -322,7 +327,7 @@ export default class VorrathController extends ControllerAI {
         this.punchActiveDuration = 0.2;
         this.punchRecoveryDuration = 0.7;
         this.punchCooldownDuration = 1.5;
-        this.punchDamage = 20;
+        this.punchDamage = scaledDamage(20);
         this.punchKnockbackX = 100;
         this.punchKnockbackY = -180;
         this.punchCooldownTimer = 0;
@@ -337,7 +342,7 @@ export default class VorrathController extends ControllerAI {
         this.slamActiveDuration = 0.55;
         this.slamRecoveryDuration = 0.8;
         this.slamCooldownDuration = 1.0;
-        this.slamDamage = 30;
+        this.slamDamage = scaledDamage(30);
         this.slamKnockbackX = 100;
         this.slamKnockbackY = -420;
         this.slamCooldownTimer = 0;
@@ -355,7 +360,7 @@ export default class VorrathController extends ControllerAI {
         this.rockThrowActiveDuration = 0.2;
         this.rockThrowRecoveryDuration = 0.9;
         this.rockThrowCooldownDuration = 4.2;
-        this.rockThrowDamage = 15;
+        this.rockThrowDamage = scaledDamage(15);
         this.rockThrowKnockbackX = 280;
         this.rockThrowKnockbackY = -220;
         this.rockThrowCooldownTimer = 0;
@@ -386,7 +391,7 @@ export default class VorrathController extends ControllerAI {
         this.twoHandSlamActiveDuration = 1.25;
         this.twoHandSlamRecoveryDuration = 1.05;
         this.twoHandSlamCooldownDuration = 5.6;
-        this.twoHandSlamDamage = 25;
+        this.twoHandSlamDamage = scaledDamage(25);
         this.twoHandSlamKnockbackX = 210;
         this.twoHandSlamKnockbackY = -360;
         this.twoHandSlamCooldownTimer = 0;

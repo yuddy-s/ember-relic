@@ -178,6 +178,9 @@ export default abstract class MBLevel extends Scene {
     /** Sound and music */
     protected levelMusicKey!: string;
     protected jumpAudioKey!: string;
+    protected dashAudioKey!: string;
+    protected attackAudioKey!: string;
+    protected damageAudioKey!: string;
     protected tileDestroyedAudioKey!: string;
     protected dyingAudioKey!: string;
 
@@ -273,7 +276,7 @@ export default abstract class MBLevel extends Scene {
     protected static readonly SHIELD_MAX_CHARGES = 5;
     protected static readonly SHIELD_BLOCK_INVULNERABILITY = 0.8;
     protected static readonly PLAYER_BASE_MAX_HEALTH = 100;
-    protected static readonly HEALTH_BUFF_MAX_HEALTH_BONUS = 20;
+    protected static readonly HEALTH_BUFF_MAX_HEALTH_BONUS = 40;
     protected static readonly REVIVAL_EFFECT_DURATION = 1.35;
     protected static readonly REVIVAL_FLASH_DURATION = 0.35;
     protected static readonly REVIVAL_INVULNERABILITY = 1.5;
@@ -2650,5 +2653,17 @@ export default abstract class MBLevel extends Scene {
     // Get the key of the player's jump audio file
     public getJumpAudioKey(): string {
         return this.jumpAudioKey
+    }
+
+    public getDashAudioKey(): string {
+        return this.dashAudioKey;
+    }
+
+    public getAttackAudioKey(): string {
+        return this.attackAudioKey;
+    }
+
+    public getDamageAudioKey(): string {
+        return this.damageAudioKey;
     }
 }

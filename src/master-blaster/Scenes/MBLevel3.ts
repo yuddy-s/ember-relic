@@ -125,6 +125,12 @@ export default class Level3 extends MBLevel {
     public static readonly LEVEL_MUSIC_PATH = "game_assets/music/level3_music.wav";
     public static readonly JUMP_AUDIO_KEY = "PLAYER_JUMP";
     public static readonly JUMP_AUDIO_PATH = "game_assets/sounds/jump.wav";
+    public static readonly DASH_AUDIO_KEY = "PLAYER_DASH";
+    public static readonly DASH_AUDIO_PATH = "game_assets/sounds/dash.wav";
+    public static readonly ATTACK_AUDIO_KEY = "PLAYER_ATTACK";
+    public static readonly ATTACK_AUDIO_PATH = "game_assets/sounds/attack.wav";
+    public static readonly DAMAGE_AUDIO_KEY = "PLAYER_DAMAGE";
+    public static readonly DAMAGE_AUDIO_PATH = "game_assets/sounds/taking_damage.wav";
     public static readonly TILE_DESTROYED_KEY = "TILE_DESTROYED";
     public static readonly TILE_DESTROYED_PATH = "game_assets/sounds/switch.wav";
     public static readonly DYING_AUDIO_KEY = "DYING_AUDIO";
@@ -201,6 +207,9 @@ export default class Level3 extends MBLevel {
 
         this.levelMusicKey = Level3.LEVEL_MUSIC_KEY;
         this.jumpAudioKey = Level3.JUMP_AUDIO_KEY;
+        this.dashAudioKey = Level3.DASH_AUDIO_KEY;
+        this.attackAudioKey = Level3.ATTACK_AUDIO_KEY;
+        this.damageAudioKey = Level3.DAMAGE_AUDIO_KEY;
         this.tileDestroyedAudioKey = Level3.TILE_DESTROYED_KEY;
         this.dyingAudioKey = Level3.DYING_AUDIO_KEY;
 
@@ -242,6 +251,9 @@ export default class Level3 extends MBLevel {
         // Audio
         this.load.audio(this.levelMusicKey, Level3.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level3.JUMP_AUDIO_PATH);
+        this.load.audio(this.dashAudioKey, Level3.DASH_AUDIO_PATH);
+        this.load.audio(this.attackAudioKey, Level3.ATTACK_AUDIO_PATH);
+        this.load.audio(this.damageAudioKey, Level3.DAMAGE_AUDIO_PATH);
         this.load.audio(this.tileDestroyedAudioKey, Level3.TILE_DESTROYED_PATH);
         this.load.audio(this.dyingAudioKey, Level3.DYING_AUDIO_PATH);
     }
@@ -249,6 +261,9 @@ export default class Level3 extends MBLevel {
     public unloadScene(): void {
         this.resourceManager.keepSpritesheet(this.playerSpriteKey);
         this.resourceManager.keepAudio(this.jumpAudioKey);
+        this.resourceManager.keepAudio(this.dashAudioKey);
+        this.resourceManager.keepAudio(this.attackAudioKey);
+        this.resourceManager.keepAudio(this.damageAudioKey);
         this.resourceManager.keepAudio(this.dyingAudioKey);
         this.resourceManager.keepAudio(this.tileDestroyedAudioKey);
     }

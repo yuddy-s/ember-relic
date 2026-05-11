@@ -22,10 +22,14 @@ import WallLatch from "./PlayerStates/WallLatch";
 import { TweenableProperties } from "../../Wolfie2D/Nodes/GameNode";
 import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
+import { GameEventType } from "../../Wolfie2D/Events/GameEventType";
 
 type DamageModifyingScene = {
     isPlayerDamageDisabled?: () => boolean;
     modifyIncomingPlayerDamage?: (amount: number, damageType: string) => number;
+    getDashAudioKey?: () => string;
+    getAttackAudioKey?: () => string;
+    getDamageAudioKey?: () => string;
 };
 
 // TODO play your heros animations
@@ -219,6 +223,7 @@ export default class PlayerController extends StateMachineAI {
             // Start the particle system at the player's current position
             const slashOrigin = this.owner.position.clone().add(attackDirection.clone().normalize().scale(8));
             this.weapon.startSystem(180, 0, slashOrigin);
+            this.playPlayerSfx("getAttackAudioKey");
             this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
             this.owner.animation.queue(PlayerAnimations.IDLE);
             this.attackCooldownTimer = this.ATTACK_COOLDOWN;
@@ -265,6 +270,7 @@ export default class PlayerController extends StateMachineAI {
 
             const slashOrigin = this.owner.position.clone().add(attackDirection.clone().normalize().scale(8));
             this.weapon.startSystem(180, 0, slashOrigin);
+            this.playPlayerSfx("getAttackAudioKey");
             this.owner.animation.playIfNotAlready(PlayerAnimations.ATTACK_RIGHT, false);
             this.owner.animation.queue(PlayerAnimations.IDLE);
         } else if(moveDir.isZero()){
@@ -471,6 +477,7 @@ export default class PlayerController extends StateMachineAI {
         this.grantInvulnerability(this.DASH_DURATION);
         this.velocity.x = this.dashDirection.x * this.DASH_SPEED;
         this.velocity.y = 0;
+        this.playPlayerSfx("getDashAudioKey");
         return true;
     }
 
@@ -534,10 +541,25 @@ export default class PlayerController extends StateMachineAI {
         this.health = this.health - resolvedDamage;
         if(this.health > 0){
             this.grantInvulnerability(this.POST_HIT_INVULNERABILITY);
+            this.playPlayerSfx("getDamageAudioKey");
             this.changeState(PlayerStates.TAKINGDAMAGE);
         }
 
         return true;
+    }
+
+    protected playPlayerSfx(audioGetter: "getDashAudioKey" | "getAttackAudioKey" | "getDamageAudioKey"): void {
+        const scene = this.owner.getScene() as DamageModifyingScene;
+        const audioKey = scene[audioGetter]?.();
+        if(audioKey === undefined || audioKey === ""){
+            return;
+        }
+
+        this.emitter.fireEvent(GameEventType.PLAY_SOUND, {
+            key: audioKey,
+            loop: false,
+            holdReference: false
+        });
     }
 
     public applyEnvironmentalTickDamage(amount: number): boolean {

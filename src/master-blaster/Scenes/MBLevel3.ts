@@ -56,6 +56,10 @@ export default class Level3 extends MBLevel {
     private level3BossProgressRecorded: boolean = false;
     private doubleJumpRewardShown: boolean = false;
     private doubleJumpGrantedFromBoss: boolean = false;
+    private revivalTotemRewardShown: boolean = false;
+    private revivalTotemGrantedFromBoss: boolean = false;
+    private blueFragmentRewardShown: boolean = false;
+    private blueFragmentGrantedFromBoss: boolean = false;
     private coldDamageTimer: number = 0;
     private icePickPickupSprite: Sprite | null = null;
     private icePickPickupPromptPanel!: Rect;
@@ -243,6 +247,7 @@ export default class Level3 extends MBLevel {
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_ICON_KEY, MBLevel.SHIELD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
+        this.load.image(MBLevel.ASHEN_SEAL_FRAGMENT_ICON_KEY, MBLevel.ASHEN_SEAL_FRAGMENT_ICON_PATH);
         this.load.image(Level3.PORTAL_IMAGE_KEY, Level3.PORTAL_IMAGE_PATH);
         
         // Background image
@@ -278,6 +283,10 @@ export default class Level3 extends MBLevel {
         this.travelPortalDestination = HubLevel;
         this.doubleJumpRewardShown = false;
         this.doubleJumpGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP);
+        this.revivalTotemRewardShown = false;
+        this.revivalTotemGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.REVIVAL_TOTEM_L3);
+        this.blueFragmentRewardShown = false;
+        this.blueFragmentGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE);
         this.level3BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level3Boss.id);
         this.coldDamageTimer = 0;
         this.arenaDropShakeTimer = 0;
@@ -866,7 +875,49 @@ export default class Level3 extends MBLevel {
         });
     }
 
-    // ── Boss reward — grants Double Jump on defeat (mirrors Vorrath → Fur Coat) 
+    // ── Boss rewards ───────────────────────────────────────────────────────────
+
+    protected showRevivalTotemBossReward(): void {
+        if (
+            this.revivalTotemGrantedFromBoss ||
+            MBProgress.hasUpgrade(UpgradeId.REVIVAL_TOTEM_L3)
+        ) {
+            this.revivalTotemGrantedFromBoss = true;
+            this.showBlueFragmentBossReward();
+            return;
+        }
+
+        if (this.revivalTotemRewardShown) {
+            return;
+        }
+
+        this.revivalTotemRewardShown = true;
+        this.showUpgradeRewardPopup(UpgradeId.REVIVAL_TOTEM_L3, () => {
+            this.grantUpgrade(UpgradeId.REVIVAL_TOTEM_L3);
+            this.revivalTotemGrantedFromBoss = true;
+            this.showBlueFragmentBossReward();
+        });
+    }
+
+    protected showBlueFragmentBossReward(): void {
+        if (
+            this.blueFragmentGrantedFromBoss ||
+            MBProgress.hasUpgrade(UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE)
+        ) {
+            this.blueFragmentGrantedFromBoss = true;
+            return;
+        }
+
+        if (this.blueFragmentRewardShown) {
+            return;
+        }
+
+        this.blueFragmentRewardShown = true;
+        this.showUpgradeRewardPopup(UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE, () => {
+            this.grantUpgrade(UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE);
+            this.blueFragmentGrantedFromBoss = true;
+        });
+    }
 
     protected updateBossRewardState(): void {
         if (this.level3Boss === undefined || !this.level3Boss.isDefeated()) {
@@ -878,11 +929,6 @@ export default class Level3 extends MBLevel {
             this.level3BossProgressRecorded = true;
         }
 
-        if (this.doubleJumpGrantedFromBoss || this.doubleJumpRewardShown || MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP)) {
-            this.doubleJumpGrantedFromBoss = true;
-            return;
-        }
-
         // Wait for DYING animation to finish before showing reward popup
         const dyingStillPlaying =
             this.level3BossSprite !== undefined &&
@@ -892,10 +938,21 @@ export default class Level3 extends MBLevel {
             return;
         }
 
+        if (this.doubleJumpGrantedFromBoss || MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP)) {
+            this.doubleJumpGrantedFromBoss = true;
+            this.showRevivalTotemBossReward();
+            return;
+        }
+
+        if (this.doubleJumpRewardShown) {
+            return;
+        }
+
         this.doubleJumpRewardShown = true;
         this.showUpgradeRewardPopup(UpgradeId.DOUBLE_JUMP, () => {
             this.grantUpgrade(UpgradeId.DOUBLE_JUMP);
             this.doubleJumpGrantedFromBoss = true;
+            this.showRevivalTotemBossReward();
         });
     }
 

@@ -52,10 +52,10 @@ export default class Level2 extends MBLevel {
     private level2BossSprite!: MBAnimatedSprite;
     private bossDefeatVignetteTimer: number = 0;
     private bossDefeatVignetteDelayStarted: boolean = false;
-    private furCoatRewardShown: boolean = false;
-    private furCoatGrantedFromBoss: boolean = false;
     private revivalTotemRewardShown: boolean = false;
     private revivalTotemGrantedFromBoss: boolean = false;
+    private ashenSealFragmentRewardShown: boolean = false;
+    private ashenSealFragmentGrantedFromBoss: boolean = false;
     private healthBuffRingDropped: boolean = false;
     private playerCanPickUpHealthBuff: boolean = false;
     private playerCanPickUpShield: boolean = false;
@@ -231,6 +231,7 @@ export default class Level2 extends MBLevel {
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_ICON_KEY, MBLevel.SHIELD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
+        this.load.image(MBLevel.ASHEN_SEAL_FRAGMENT_ICON_KEY, MBLevel.ASHEN_SEAL_FRAGMENT_ICON_PATH);
         // Audio and music
         this.load.audio(this.levelMusicKey, Level2.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level2.JUMP_AUDIO_PATH);
@@ -254,10 +255,10 @@ export default class Level2 extends MBLevel {
         this.travelPortalDestination = HubLevel;
         this.bossDefeatVignetteTimer = 0;
         this.bossDefeatVignetteDelayStarted = false;
-        this.furCoatRewardShown = false;
-        this.furCoatGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.FUR_COAT);
         this.revivalTotemRewardShown = false;
         this.revivalTotemGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.REVIVAL_TOTEM_L1);
+        this.ashenSealFragmentRewardShown = false;
+        this.ashenSealFragmentGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.ASHEN_SEAL_FRAGMENT);
         this.level2BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level2Boss.id);
     }
 
@@ -813,10 +814,14 @@ export default class Level2 extends MBLevel {
     protected showRevivalTotemBossReward(): void {
         if(
             this.revivalTotemGrantedFromBoss ||
-            this.revivalTotemRewardShown ||
             MBProgress.hasUpgrade(UpgradeId.REVIVAL_TOTEM_L1)
         ){
             this.revivalTotemGrantedFromBoss = true;
+            this.showAshenSealFragmentBossReward();
+            return;
+        }
+
+        if(this.revivalTotemRewardShown){
             return;
         }
 
@@ -824,6 +829,27 @@ export default class Level2 extends MBLevel {
         this.showUpgradeRewardPopup(UpgradeId.REVIVAL_TOTEM_L1, () => {
             this.grantUpgrade(UpgradeId.REVIVAL_TOTEM_L1);
             this.revivalTotemGrantedFromBoss = true;
+            this.showAshenSealFragmentBossReward();
+        });
+    }
+
+    protected showAshenSealFragmentBossReward(): void {
+        if(
+            this.ashenSealFragmentGrantedFromBoss ||
+            MBProgress.hasUpgrade(UpgradeId.ASHEN_SEAL_FRAGMENT)
+        ){
+            this.ashenSealFragmentGrantedFromBoss = true;
+            return;
+        }
+
+        if(this.ashenSealFragmentRewardShown){
+            return;
+        }
+
+        this.ashenSealFragmentRewardShown = true;
+        this.showUpgradeRewardPopup(UpgradeId.ASHEN_SEAL_FRAGMENT, () => {
+            this.grantUpgrade(UpgradeId.ASHEN_SEAL_FRAGMENT);
+            this.ashenSealFragmentGrantedFromBoss = true;
         });
     }
 
@@ -842,21 +868,6 @@ export default class Level2 extends MBLevel {
             return;
         }
 
-        if(this.furCoatGrantedFromBoss || MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
-            this.furCoatGrantedFromBoss = true;
-            this.showRevivalTotemBossReward();
-            return;
-        }
-
-        if(this.furCoatRewardShown){
-            return;
-        }
-
-        this.furCoatRewardShown = true;
-        this.showUpgradeRewardPopup(UpgradeId.FUR_COAT, () => {
-            this.grantUpgrade(UpgradeId.FUR_COAT);
-            this.furCoatGrantedFromBoss = true;
-            this.showRevivalTotemBossReward();
-        });
+        this.showRevivalTotemBossReward();
     }
 }

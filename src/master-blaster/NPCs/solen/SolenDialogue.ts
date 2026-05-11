@@ -1,3 +1,4 @@
+import { BossId } from "../../Bosses/BossHandle";
 import { MBProgress, UpgradeId } from "../../Progress/MBProgress";
 
 export interface SolenDialoguePage {
@@ -61,7 +62,11 @@ const SOLEN_STAGE_CONVERSATIONS: ReadonlyArray<SolenConversation> = Object.freez
             },
             {
                 speaker: "Solen",
-                text: "Then your path is the right one. The other fragments will not wait quietly. Hunt another, and the truth will come closer."
+                text: "Then your path is the right one. The peaks ahead will kill an unguarded heart as quickly as any blade."
+            },
+            {
+                speaker: "Solen",
+                text: "Take this fur coat. Let it keep the mountain's teeth from finding you before the next fragment does."
             }
         ])
     },
@@ -73,27 +78,7 @@ const SOLEN_STAGE_CONVERSATIONS: ReadonlyArray<SolenConversation> = Object.freez
         pages: Object.freeze([
             {
                 speaker: "Solen",
-                text: "Two fragments gone. Vaelundra shifts each time you return, as though the city itself is bracing for your memory."
-            },
-            {
-                speaker: "Kael",
-                text: "You keep talking like you know who I was."
-            },
-            {
-                speaker: "Solen",
-                text: "I do. But names spoken too early can become chains. One more fragment, and the seal will no longer let me hide the worst of it."
-            }
-        ])
-    },
-    {
-        id: "solen_after_third_boss",
-        promptText: "[E] Speak with Solen",
-        stageIndex: 3,
-        advanceStageOnComplete: true,
-        pages: Object.freeze([
-            {
-                speaker: "Solen",
-                text: "The third fragment has fallen. The Hearthhold's sealed door is listening now, even if it still pretends to sleep."
+                text: "The second fragment has fallen. The Hearthhold's sealed door is listening now, even if it still pretends to sleep."
             },
             {
                 speaker: "Solen",
@@ -147,7 +132,11 @@ export function getPendingSolenConversation(): SolenConversation | null {
         return SOLEN_STAGE_CONVERSATIONS[normalizedStage];
     }
 
-    if(MBProgress.getDefeatedBossCount() >= normalizedStage){
+    if(normalizedStage === 1 && MBProgress.hasDefeatedBoss(BossId.LEVEL_2)){
+        return SOLEN_STAGE_CONVERSATIONS[normalizedStage];
+    }
+
+    if(normalizedStage > 1 && MBProgress.getDefeatedBossCount() >= normalizedStage){
         return SOLEN_STAGE_CONVERSATIONS[normalizedStage];
     }
 

@@ -45,8 +45,7 @@ export const MB_PROGRESS_SNAPSHOTS: Readonly<Record<ProgressSnapshotId, MBProgre
         upgrades: [
             UpgradeId.LANTERN,
             UpgradeId.SHIELD,
-            UpgradeId.REVIVAL_TOTEM_L1,
-            UpgradeId.ASHEN_SEAL_FRAGMENT
+            UpgradeId.REVIVAL_TOTEM_L1
         ],
         defeatedBosses: [
             BossId.LEVEL_1
@@ -61,8 +60,7 @@ export const MB_PROGRESS_SNAPSHOTS: Readonly<Record<ProgressSnapshotId, MBProgre
             UpgradeId.SHIELD,
             UpgradeId.REVIVAL_TOTEM_L1,
             UpgradeId.UPGRADED_BOOTS,
-            UpgradeId.ICE_PICK,
-            UpgradeId.ASHEN_SEAL_FRAGMENT
+            UpgradeId.ICE_PICK
         ],
         defeatedBosses: [
             BossId.LEVEL_1,
@@ -84,7 +82,8 @@ export const MB_PROGRESS_SNAPSHOTS: Readonly<Record<ProgressSnapshotId, MBProgre
             UpgradeId.HEALTH_BUFF,
             UpgradeId.REVIVAL_TOTEM_L3,
             UpgradeId.UPGRADED_SWORD,
-            UpgradeId.ASHEN_SEAL_FRAGMENT
+            UpgradeId.ASHEN_SEAL_FRAGMENT,
+            UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE
         ],
         defeatedBosses: [
             BossId.LEVEL_1,

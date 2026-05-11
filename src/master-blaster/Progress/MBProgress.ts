@@ -12,7 +12,8 @@ export enum UpgradeId {
     HEALTH_BUFF = "HEALTH_BUFF",
     REVIVAL_TOTEM_L3 = "REVIVAL_TOTEM_L3",
     UPGRADED_SWORD = "UPGRADED_SWORD",
-    ASHEN_SEAL_FRAGMENT = "ASHEN_SEAL_FRAGMENT"
+    ASHEN_SEAL_FRAGMENT = "ASHEN_SEAL_FRAGMENT",
+    ASHEN_SEAL_FRAGMENT_BLUE = "ASHEN_SEAL_FRAGMENT_BLUE"
 }
 
 export type UpgradeMetadata = {
@@ -35,7 +36,8 @@ export const UPGRADE_ORDER: Array<UpgradeId> = [
     UpgradeId.HEALTH_BUFF,
     UpgradeId.REVIVAL_TOTEM_L3,
     UpgradeId.UPGRADED_SWORD,
-    UpgradeId.ASHEN_SEAL_FRAGMENT
+    UpgradeId.ASHEN_SEAL_FRAGMENT,
+    UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE
 ];
 
 export const UPGRADE_METADATA: Record<UpgradeId, UpgradeMetadata> = {
@@ -118,8 +120,15 @@ export const UPGRADE_METADATA: Record<UpgradeId, UpgradeMetadata> = {
     },
     [UpgradeId.ASHEN_SEAL_FRAGMENT]: {
         name: "Ashen Seal Fragment",
-        description: "A relic shard tied to Kael's fate that marks the seal's growing instability after major victories.",
+        description: "A relic shard that marks the seal's growing instability after major victories.",
         iconKey: "ashen_seal_fragment",
+        essential: false,
+        shortLabel: "AS"
+    },
+    [UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE]: {
+        name: "Ashen Seal Fragment",
+        description: "A second relic shard that deepens the seal's fracture after Seris falls.",
+        iconKey: "ashen_seal_fragment_blue",
         essential: false,
         shortLabel: "AS"
     }
@@ -148,7 +157,9 @@ export type MBProgressInitData = MBProgressSnapshot;
 const ESSENTIAL_HUD_UPGRADES: Array<UpgradeId> = [
     UpgradeId.LANTERN,
     UpgradeId.FUR_COAT,
-    UpgradeId.DOUBLE_JUMP
+    UpgradeId.DOUBLE_JUMP,
+    UpgradeId.SHIELD,
+    UpgradeId.REVIVAL_TOTEM_L1
 ];
 
 const UPGRADE_LOOKUP = new Set<UpgradeId>(UPGRADE_ORDER);
@@ -423,15 +434,14 @@ export class MBProgressStore {
 
     public getEssentialHudUpgrades(): Array<UpgradeId | null> {
         const hudUpgrades: Array<UpgradeId | null> = ESSENTIAL_HUD_UPGRADES.slice();
-        const recentOptionalUpgrades = this.state.acquisitionOrder
-            .filter(upgradeId => !UPGRADE_METADATA[upgradeId].essential)
-            .slice(-2)
-            .reverse();
+        const revivalSlotIndex = hudUpgrades.indexOf(UpgradeId.REVIVAL_TOTEM_L1);
 
-        recentOptionalUpgrades.forEach(upgradeId => hudUpgrades.push(upgradeId));
-
-        while(hudUpgrades.length < 5){
-            hudUpgrades.push(null);
+        if(
+            revivalSlotIndex >= 0 &&
+            !this.state.ownedUpgrades.has(UpgradeId.REVIVAL_TOTEM_L1) &&
+            this.state.ownedUpgrades.has(UpgradeId.REVIVAL_TOTEM_L3)
+        ){
+            hudUpgrades[revivalSlotIndex] = UpgradeId.REVIVAL_TOTEM_L3;
         }
 
         return hudUpgrades.slice(0, 5);

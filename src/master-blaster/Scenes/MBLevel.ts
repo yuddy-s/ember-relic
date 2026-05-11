@@ -224,6 +224,8 @@ export default abstract class MBLevel extends Scene {
     protected static readonly SHIELD_ICON_PATH = "game_assets/art/upgrades/shield.png";
     protected static readonly SHIELD_BROKEN_ICON_KEY = "UPGRADE_ICON_SHIELD_BROKEN";
     protected static readonly SHIELD_BROKEN_ICON_PATH = "game_assets/art/upgrades/shieldBroken.png";
+    protected static readonly ASHEN_SEAL_FRAGMENT_ICON_KEY = "UPGRADE_ICON_ASHEN_SEAL_FRAGMENT";
+    protected static readonly ASHEN_SEAL_FRAGMENT_ICON_PATH = "game_assets/art/upgrades/fragments.png";
 
     
     // HUD TUNING"
@@ -1475,8 +1477,32 @@ export default abstract class MBLevel extends Scene {
                 return MBLevel.UPGRADED_SWORD_ICON_KEY;
             case UpgradeId.SHIELD:
                 return this.shieldCharges > 0 ? MBLevel.SHIELD_ICON_KEY : MBLevel.SHIELD_BROKEN_ICON_KEY;
+            case UpgradeId.ASHEN_SEAL_FRAGMENT:
+            case UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE:
+                return MBLevel.ASHEN_SEAL_FRAGMENT_ICON_KEY;
             default:
                 return null;
+        }
+    }
+
+    protected getUpgradeIconImageOffset(upgradeId: UpgradeId): Vec2 {
+        switch(upgradeId){
+            case UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE:
+                return new Vec2(0, 128);
+            case UpgradeId.ASHEN_SEAL_FRAGMENT:
+                return Vec2.ZERO;
+            default:
+                return Vec2.ZERO;
+        }
+    }
+
+    protected getUpgradeIconFrameSize(upgradeId: UpgradeId, image: HTMLImageElement): Vec2 {
+        switch(upgradeId){
+            case UpgradeId.ASHEN_SEAL_FRAGMENT:
+            case UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE:
+                return new Vec2(128, 128);
+            default:
+                return new Vec2(image.width, image.height);
         }
     }
 
@@ -1486,13 +1512,17 @@ export default abstract class MBLevel extends Scene {
         }
 
         const imageKey = this.getUpgradeIconImageKey(upgradeId);
-        if(imageKey === null || icon.imageId === imageKey){
+        if(imageKey === null){
             return;
         }
 
-        icon.imageId = imageKey;
+        if(icon.imageId !== imageKey){
+            icon.imageId = imageKey;
+        }
+
         const image = ResourceManager.getInstance().getImage(imageKey);
-        icon.size.set(image.width, image.height);
+        icon.size.copy(this.getUpgradeIconFrameSize(upgradeId, image));
+        icon.setImageOffset(this.getUpgradeIconImageOffset(upgradeId));
     }
 
     protected setPauseInventorySelection(upgradeId: UpgradeId | null): void {
@@ -2247,13 +2277,22 @@ export default abstract class MBLevel extends Scene {
         const slotCenterX = viewportPosition(pause.inventoryCenterX, 0).x;
         const slotStartY = viewportPosition(0, pause.inventorySlotStartY).y;
         const slotStepY = viewSize.y * (pause.inventorySlotStepY / 800);
+        const fragmentSlotStepX = viewSize.x * ((pause.inventorySlotSize + 10) / 1200);
+        const fragmentRowIndex = UPGRADE_ORDER.indexOf(UpgradeId.ASHEN_SEAL_FRAGMENT);
         const pauseSlotSize = viewportGraphicSize(pause.inventorySlotSize, pause.inventorySlotSize);
 
         UPGRADE_ORDER.forEach((upgradeId, index) => {
-            const slotY = slotStartY + index * slotStepY;
+            const fragmentColumnOffset = upgradeId === UpgradeId.ASHEN_SEAL_FRAGMENT
+                ? -fragmentSlotStepX / 2
+                : upgradeId === UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE
+                    ? fragmentSlotStepX / 2
+                    : 0;
+            const layoutIndex = upgradeId === UpgradeId.ASHEN_SEAL_FRAGMENT_BLUE ? fragmentRowIndex : index;
+            const slotX = slotCenterX + fragmentColumnOffset;
+            const slotY = slotStartY + layoutIndex * slotStepY;
 
             const slot = <Button>this.add.uiElement(UIElementType.BUTTON, MBLayers.PAUSE, {
-                position: new Vec2(slotCenterX, slotY),
+                position: new Vec2(slotX, slotY),
                 text: ""
             });
             slot.size.copy(pauseSlotSize);

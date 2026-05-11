@@ -163,6 +163,7 @@ export default class HubLevel extends MBLevel {
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_ICON_KEY, MBLevel.SHIELD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
+        this.load.image(MBLevel.ASHEN_SEAL_FRAGMENT_ICON_KEY, MBLevel.ASHEN_SEAL_FRAGMENT_ICON_PATH);
         this.load.image(HubLevel.CAMPFIRE_IMAGE_KEY, HubLevel.CAMPFIRE_IMAGE_PATH);
         this.load.audio(this.levelMusicKey, HubLevel.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, HubLevel.JUMP_AUDIO_PATH);

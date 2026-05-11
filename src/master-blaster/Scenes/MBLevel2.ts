@@ -25,6 +25,7 @@ import MBLevel, { MBLayers } from "./MBLevel";
 import HubLevel from "./HubLevel";
 import Level1 from "./MBLevel1";
 import Level3 from "./MBLevel3";
+import Level4 from "./MBLevel4";
 import MainMenu from "./MainMenu";
 
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
@@ -798,6 +799,8 @@ export default class Level2 extends MBLevel {
                 return Level2;
             case ProgressTargetSceneId.LEVEL_3:
                 return Level3;
+            case ProgressTargetSceneId.LEVEL_4:
+                return Level4;
             default:
                 return null;
         }
@@ -839,6 +842,21 @@ export default class Level2 extends MBLevel {
             return;
         }
 
-        this.showRevivalTotemBossReward();
+        if(this.furCoatGrantedFromBoss || MBProgress.hasUpgrade(UpgradeId.FUR_COAT)){
+            this.furCoatGrantedFromBoss = true;
+            this.showRevivalTotemBossReward();
+            return;
+        }
+
+        if(this.furCoatRewardShown){
+            return;
+        }
+
+        this.furCoatRewardShown = true;
+        this.showUpgradeRewardPopup(UpgradeId.FUR_COAT, () => {
+            this.grantUpgrade(UpgradeId.FUR_COAT);
+            this.furCoatGrantedFromBoss = true;
+            this.showRevivalTotemBossReward();
+        });
     }
 }

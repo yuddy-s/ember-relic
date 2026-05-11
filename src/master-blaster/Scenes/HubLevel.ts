@@ -367,10 +367,9 @@ export default class HubLevel extends MBLevel {
             }
         };
 
-        const rewardUpgradeId = conversation.rewardUpgradeId;
-        if(rewardUpgradeId !== undefined && !MBProgress.hasUpgrade(rewardUpgradeId)){
-            this.showUpgradeRewardPopup(rewardUpgradeId, () => {
-                this.grantUpgrade(rewardUpgradeId);
+        if(conversation.rewardUpgradeId !== undefined && !MBProgress.hasUpgrade(conversation.rewardUpgradeId)){
+            this.showUpgradeRewardPopup(conversation.rewardUpgradeId, () => {
+                this.grantUpgrade(conversation.rewardUpgradeId);
                 finalizeConversation();
             });
             return;
@@ -507,12 +506,6 @@ export default class HubLevel extends MBLevel {
             return;
         }
 
-        // Puzzle/Lock Logic: Prevent entering Level 4 if prerequisites aren't met
-        if (activePortal.targetSceneId === ProgressTargetSceneId.LEVEL_4 && MBProgress.getDefeatedBossCount() < 3) {
-            this.playerCanInteractWithLevelEnd = false;
-            return;
-        }
-
         this.travelPortalDestination = destination;
         this.levelEndPromptLabel.text = activePortal.promptText;
     }
@@ -527,6 +520,8 @@ export default class HubLevel extends MBLevel {
                 return require("./MBLevel2").default;
             case ProgressTargetSceneId.LEVEL_3:
                 return require("./MBLevel3").default;
+            case ProgressTargetSceneId.LEVEL_4:
+                return require("./MBLevel4").default;
             default:
                 return null;
         }

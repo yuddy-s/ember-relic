@@ -17,6 +17,7 @@ import MainMenu from "./MainMenu";
 import MBLevel, { MBLayers } from "./MBLevel";
 import Level1 from "./MBLevel1";
 import Level2 from "./MBLevel2";
+import Level4 from "./MBLevel4";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import { MBEvents } from "../MBEvents";
@@ -73,6 +74,7 @@ export default class Level3 extends MBLevel {
     private doubleJumpPickupPromptLabel!: Label;
     private playerCanPickUpDoubleJump: boolean = false;
     private arenaDropShakeTimer: number = 0;
+    private levelEndPortal: Sprite | null = null;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     //112, 2700
@@ -90,6 +92,11 @@ export default class Level3 extends MBLevel {
     public static readonly TILEMAP_HEIGHT_TILES = 240;
     public static readonly TILE_SIZE = 16;
     public static readonly LEVEL_ZOOM = 2.6;
+    public static readonly PORTAL_IMAGE_KEY = "LEVEL3_PORTAL";
+    public static readonly PORTAL_IMAGE_PATH = "game_assets/spritesheets/portals.png";
+    public static readonly PORTAL_FRAME_COLUMNS = 2;
+    public static readonly PORTAL_FRAME_SIZE = new Vec2(32, 61);
+    public static readonly GREEN_RIGHT_PORTAL_FRAME = 6;
 
     // ── Background ────────────────────────────────────────────────────────────
     public static readonly BACKGROUND_IMAGE_KEY = "LEVEL3_SNOW_BACKGROUND";
@@ -197,7 +204,7 @@ export default class Level3 extends MBLevel {
         this.tileDestroyedAudioKey = Level3.TILE_DESTROYED_KEY;
         this.dyingAudioKey = Level3.DYING_AUDIO_KEY;
 
-        this.levelEndPosition = new Vec2(1880, 170);
+        this.levelEndPosition = new Vec2(4240, 848);
         this.levelEndHalfSize = new Vec2(32, 32).mult(this.tilemapScale);
     }
 
@@ -227,6 +234,7 @@ export default class Level3 extends MBLevel {
         this.load.image(MBLevel.UPGRADED_SWORD_ICON_KEY, MBLevel.UPGRADED_SWORD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_ICON_KEY, MBLevel.SHIELD_ICON_PATH);
         this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
+        this.load.image(Level3.PORTAL_IMAGE_KEY, Level3.PORTAL_IMAGE_PATH);
         
         // Background image
         this.load.image(Level3.BACKGROUND_IMAGE_KEY, Level3.BACKGROUND_IMAGE_PATH);
@@ -252,7 +260,7 @@ export default class Level3 extends MBLevel {
         this.initializeSnowmen();
         this.initializeWolves();
         this.initializeGuards();
-        this.travelPortalDestination = MainMenu;
+        this.travelPortalDestination = HubLevel;
         this.doubleJumpRewardShown = false;
         this.doubleJumpGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP);
         this.level3BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level3Boss.id);
@@ -282,6 +290,19 @@ export default class Level3 extends MBLevel {
                 this.breakArenaFloor();
             } else {
                 this.viewport.setZoomLevel(Level3.LEVEL_ZOOM + (Math.random() * 0.06 - 0.03));
+            }
+        }
+
+        if (this.level3Boss !== undefined && this.level3Boss.isDefeated()) {
+            const dyingStillPlaying =
+                this.level3BossSprite !== undefined &&
+                this.level3BossSprite.animation.isPlaying(SerisAnimations.DYING);
+
+            if (!dyingStillPlaying && this.levelEndPortal !== null && !this.levelEndPortal.visible) {
+                this.levelEndPortal.visible = true;
+                if (this.levelEndArea !== undefined) {
+                    this.levelEndArea.enablePhysics();
+                }
             }
         }
 
@@ -869,6 +890,30 @@ export default class Level3 extends MBLevel {
         return this.level3BossSprite ?? null;
     }
 
+    protected initializeLevelEnds(): void {
+        const portal = this.add.sprite(Level3.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
+        const frameCol = Level3.GREEN_RIGHT_PORTAL_FRAME % Level3.PORTAL_FRAME_COLUMNS;
+        const frameRow = Math.floor(Level3.GREEN_RIGHT_PORTAL_FRAME / Level3.PORTAL_FRAME_COLUMNS);
+
+        portal.size.copy(Level3.PORTAL_FRAME_SIZE);
+        portal.scale.copy(this.tilemapScale);
+        portal.setImageOffset(new Vec2(
+            frameCol * Level3.PORTAL_FRAME_SIZE.x,
+            frameRow * Level3.PORTAL_FRAME_SIZE.y
+        ));
+        portal.position.copy(this.levelEndPosition);
+        portal.visible = false;
+        this.levelEndPortal = portal;
+
+        this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: this.levelEndPosition.clone(),
+            size: this.levelEndHalfSize.clone()
+        });
+        this.levelEndArea.addPhysics(undefined, undefined, false, true);
+        this.levelEndArea.visible = false;
+        this.levelEndArea.disablePhysics();
+    }
+
     // ── Floor snap helper (same logic as Level2.placeBossOnFloor) ────────────
 
     protected placeBossOnFloor(hitboxHalfSize: Vec2): void {
@@ -959,6 +1004,7 @@ export default class Level3 extends MBLevel {
             case ProgressTargetSceneId.LEVEL_1: return Level1;
             case ProgressTargetSceneId.LEVEL_2: return Level2;
             case ProgressTargetSceneId.LEVEL_3: return Level3;
+            case ProgressTargetSceneId.LEVEL_4: return Level4;
             default: return null;
         }
     }

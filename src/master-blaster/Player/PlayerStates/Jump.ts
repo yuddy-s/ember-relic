@@ -36,6 +36,11 @@ export default class Jump extends PlayerState {
         else if (Input.isJustPressed(MBControls.DASH) && this.parent.canDash()) {
             this.finished(PlayerStates.DASH);
         }
+        // Allow double jump
+        else if (Input.isJustPressed(MBControls.JUMP) && this.parent.canDoubleJump()) {
+            this.parent.consumeDoubleJump();
+            this.finished(PlayerStates.JUMP);
+        }
         // If the player hit the ceiling or their velocity is >= to zero, 
         else if(this.owner.onCeiling || this.parent.velocity.y >= 0){
             this.finished(PlayerStates.FALL);

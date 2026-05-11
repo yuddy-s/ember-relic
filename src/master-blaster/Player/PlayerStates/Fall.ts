@@ -32,6 +32,11 @@ export default class Fall extends PlayerState {
         else if (Input.isJustPressed(MBControls.DASH) && this.parent.canDash()) {
             this.finished(PlayerStates.DASH);
         }
+        // Allow double jump
+        else if (Input.isJustPressed(MBControls.JUMP) && this.parent.canDoubleJump()) {
+            this.parent.consumeDoubleJump();
+            this.finished(PlayerStates.JUMP);
+        }
         // Otherwise, keep moving
         else {
             // Get the movement direction from the player 

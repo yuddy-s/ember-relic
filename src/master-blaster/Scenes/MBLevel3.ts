@@ -1,4 +1,5 @@
 import AABB from "../../Wolfie2D/DataTypes/Shapes/AABB";
+import { GameEventType } from "../../Wolfie2D/Events/GameEventType";
 import Vec2 from "../../Wolfie2D/DataTypes/Vec2";
 import Input from "../../Wolfie2D/Input/Input";
 import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
@@ -66,6 +67,11 @@ export default class Level3 extends MBLevel {
     private speedUpPickupPromptPanel!: Rect;
     private speedUpPickupPromptLabel!: Label;
     private playerCanPickUpSpeedUp: boolean = false;
+    private doubleJumpPickupSprite: Sprite | null = null;
+    private doubleJumpPickupPromptPanel!: Rect;
+    private doubleJumpPickupPromptLabel!: Label;
+    private playerCanPickUpDoubleJump: boolean = false;
+    private arenaDropShakeTimer: number = 0;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     //112, 2700
@@ -77,7 +83,7 @@ export default class Level3 extends MBLevel {
     public static readonly TILEMAP_KEY = "LEVEL3";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/snow.json";
     public static readonly TILEMAP_SCALE = new Vec2(1, 1);
-    public static readonly DESTRUCTIBLE_LAYER_KEY = undefined;
+    public static readonly DESTRUCTIBLE_LAYER_KEY = "Breakable";
     public static readonly WALLS_LAYER_KEY = "Main";
     public static readonly TILEMAP_WIDTH_TILES = 304;
     public static readonly TILEMAP_HEIGHT_TILES = 240;
@@ -102,6 +108,9 @@ export default class Level3 extends MBLevel {
     public static readonly SPEED_UP_PICKUP_POSITION = new Vec2(1568, 1488);
     public static readonly SPEED_UP_PICKUP_SCALE = new Vec2(0.24, 0.24);
     public static readonly SPEED_UP_PICKUP_HALF_SIZE = new Vec2(24, 24);
+    public static readonly DOUBLE_JUMP_PICKUP_POSITION = new Vec2(3984, 288);
+    public static readonly DOUBLE_JUMP_PICKUP_SCALE = new Vec2(0.24, 0.24);
+    public static readonly DOUBLE_JUMP_PICKUP_HALF_SIZE = new Vec2(24, 24);
 
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
@@ -247,9 +256,11 @@ export default class Level3 extends MBLevel {
         this.doubleJumpGrantedFromBoss = MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP);
         this.level3BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level3Boss.id);
         this.coldDamageTimer = 0;
+        this.arenaDropShakeTimer = 0;
         this.initializeIcePickPickup();
         this.initializeDamageUpPickup();
         this.initializeSpeedUpPickup();
+        this.initializeDoubleJumpPickup();
         this.updateSnowBackground();
     }
 
@@ -260,7 +271,18 @@ export default class Level3 extends MBLevel {
         this.updateIcePickPickupPrompt();
         this.updateDamageUpPickupPrompt();
         this.updateSpeedUpPickupPrompt();
+        this.updateDoubleJumpPickupPrompt();
         this.updateBossRewardState();
+
+        if (this.arenaDropShakeTimer > 0) {
+            this.arenaDropShakeTimer -= deltaT;
+            if (this.arenaDropShakeTimer <= 0) {
+                this.viewport.setZoomLevel(Level3.LEVEL_ZOOM);
+                this.breakArenaFloor();
+            } else {
+                this.viewport.setZoomLevel(Level3.LEVEL_ZOOM + (Math.random() * 0.06 - 0.03));
+            }
+        }
 
         if(
             this.playerCanPickUpIcePick &&
@@ -290,6 +312,16 @@ export default class Level3 extends MBLevel {
             Input.isKeyJustPressed("e")
         ){
             this.collectSpeedUpPickup();
+        }
+
+        if(
+            this.playerCanPickUpDoubleJump &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectDoubleJumpPickup();
         }
     }
 
@@ -369,6 +401,23 @@ export default class Level3 extends MBLevel {
         this.speedUpPickupSprite.scale.copy(Level3.SPEED_UP_PICKUP_SCALE);
     }
 
+    protected initializeDoubleJumpPickup(): void {
+        this.playerCanPickUpDoubleJump = false;
+
+        if(this.doubleJumpPickupSprite !== null){
+            this.doubleJumpPickupSprite.destroy();
+            this.doubleJumpPickupSprite = null;
+        }
+
+        if(MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP)){
+            return;
+        }
+
+        this.doubleJumpPickupSprite = this.add.sprite(MBLevel.DOUBLE_JUMP_ICON_KEY, MBLayers.PRIMARY);
+        this.doubleJumpPickupSprite.position.copy(Level3.DOUBLE_JUMP_PICKUP_POSITION);
+        this.doubleJumpPickupSprite.scale.copy(Level3.DOUBLE_JUMP_PICKUP_SCALE);
+    }
+
     protected initializeUI(): void {
         super.initializeUI();
 
@@ -426,6 +475,24 @@ export default class Level3 extends MBLevel {
         this.speedUpPickupPromptLabel.fontSize = 18;
         this.speedUpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
         this.speedUpPickupPromptLabel.visible = false;
+
+        this.doubleJumpPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: new Vec2(270, 40)
+        });
+        this.doubleJumpPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
+        this.doubleJumpPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        this.doubleJumpPickupPromptPanel.visible = false;
+
+        this.doubleJumpPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick up Double Jump"
+        });
+        this.doubleJumpPickupPromptLabel.size.set(270, 24);
+        this.doubleJumpPickupPromptLabel.font = "PixelSimple";
+        this.doubleJumpPickupPromptLabel.fontSize = 18;
+        this.doubleJumpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
+        this.doubleJumpPickupPromptLabel.visible = false;
     }
 
     protected updateIcePickPickupPrompt(): void {
@@ -549,6 +616,66 @@ export default class Level3 extends MBLevel {
 
         this.grantUpgrade(UpgradeId.UPGRADED_BOOTS);
         this.showUpgradeRewardPopup(UpgradeId.UPGRADED_BOOTS);
+    }
+
+    protected updateDoubleJumpPickupPrompt(): void {
+        if(
+            this.doubleJumpPickupSprite === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpDoubleJump = false;
+            this.doubleJumpPickupPromptPanel.visible = false;
+            this.doubleJumpPickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.doubleJumpPickupSprite.position.clone(),
+            Level3.DOUBLE_JUMP_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpDoubleJump = playerAABB.overlapArea(pickupAABB) > 0;
+        this.doubleJumpPickupPromptPanel.visible = this.playerCanPickUpDoubleJump;
+        this.doubleJumpPickupPromptLabel.visible = this.playerCanPickUpDoubleJump;
+    }
+
+    protected collectDoubleJumpPickup(): void {
+        if(this.doubleJumpPickupSprite === null){
+            return;
+        }
+
+        this.playerCanPickUpDoubleJump = false;
+        this.doubleJumpPickupPromptPanel.visible = false;
+        this.doubleJumpPickupPromptLabel.visible = false;
+        this.doubleJumpPickupSprite.destroy();
+        this.doubleJumpPickupSprite = null;
+
+        this.showUpgradeRewardPopup(UpgradeId.DOUBLE_JUMP, () => {
+            this.grantUpgrade(UpgradeId.DOUBLE_JUMP);
+            this.triggerDoubleJumpArenaDrop();
+        });
+    }
+
+    protected triggerDoubleJumpArenaDrop(): void {
+        this.arenaDropShakeTimer = 1.5; // 1.5 seconds of screen shake before dropping
+        this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: this.tileDestroyedAudioKey, loop: false, holdReference: false});
+    }
+
+    protected breakArenaFloor(): void {
+        if(this.destructable !== undefined){
+            const dims = this.destructable.getDimensions();
+            for(let y = 0; y < dims.y; y++){
+                for(let x = 0; x < dims.x; x++){
+                    this.destructable.setTileAtRowCol(new Vec2(x, y), 0);
+                }
+            }
+            this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: this.tileDestroyedAudioKey, loop: false, holdReference: false});
+        }
     }
 
     protected initializeSnowmen(): void {

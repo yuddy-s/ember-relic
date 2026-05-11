@@ -108,6 +108,7 @@ export default class PlayerController extends StateMachineAI {
     protected dashCooldownTimer: number;
     protected dashDirection: Vec2;
     protected hasAirDashed: boolean;
+    protected hasDoubleJumped: boolean;
     protected coyoteTimer: number;
     protected jumpBufferTimer: number;
     protected invulnerabilityTimer: number;
@@ -133,6 +134,7 @@ export default class PlayerController extends StateMachineAI {
         this.dashCooldownTimer = 0;
         this.dashDirection = Vec2.RIGHT;
         this.hasAirDashed = false;
+        this.hasDoubleJumped = false;
         this.coyoteTimer = 0;
         this.jumpBufferTimer = 0;
         this.invulnerabilityTimer = 0;
@@ -201,6 +203,7 @@ export default class PlayerController extends StateMachineAI {
 
         if(this.owner.onGround && !this.isDashing()){
             this.hasAirDashed = false;
+            this.hasDoubleJumped = false;
             this.coyoteTimer = this.COYOTE_TIME;
             this.resetWallLatchSideLimit();
         } else {
@@ -273,6 +276,7 @@ export default class PlayerController extends StateMachineAI {
         this.dashTimer = 0;
         this.dashCooldownTimer = 0;
         this.hasAirDashed = false;
+        this.hasDoubleJumped = false;
         this.coyoteTimer = this.COYOTE_TIME;
         this.jumpBufferTimer = 0;
     }
@@ -283,6 +287,7 @@ export default class PlayerController extends StateMachineAI {
         this.dashTimer = 0;
         this.dashCooldownTimer = 0;
         this.hasAirDashed = false;
+        this.hasDoubleJumped = false;
         this.jumpBufferTimer = 0;
         this.coyoteTimer = 0;
 
@@ -311,6 +316,14 @@ export default class PlayerController extends StateMachineAI {
 
     public shouldStartJump(): boolean {
         return !this.isDashing() && this.jumpBufferTimer > 0 && (this.owner.onGround || this.coyoteTimer > 0);
+    }
+
+    public canDoubleJump(): boolean {
+        return MBProgress.hasUpgrade(UpgradeId.DOUBLE_JUMP) && !this.hasDoubleJumped;
+    }
+
+    public consumeDoubleJump(): void {
+        this.hasDoubleJumped = true;
     }
 
     public hasIcePick(): boolean {
@@ -357,6 +370,7 @@ export default class PlayerController extends StateMachineAI {
         this.velocity.y = 0;
         this.dashCooldownTimer = 0;
         this.hasAirDashed = false;
+        this.hasDoubleJumped = false;
         return true;
     }
 

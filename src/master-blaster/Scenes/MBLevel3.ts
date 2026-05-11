@@ -7,6 +7,7 @@ import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import Label from "../../Wolfie2D/Nodes/UIElements/Label";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
+import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
@@ -83,7 +84,7 @@ export default class Level3 extends MBLevel {
     public static readonly TILEMAP_KEY = "LEVEL3";
     public static readonly TILEMAP_PATH = "game_assets/tilemaps/snow.json";
     public static readonly TILEMAP_SCALE = new Vec2(1, 1);
-    public static readonly DESTRUCTIBLE_LAYER_KEY = "Breakable";
+    public static readonly DESTRUCTIBLE_LAYER_KEY = undefined;
     public static readonly WALLS_LAYER_KEY = "Main";
     public static readonly TILEMAP_WIDTH_TILES = 304;
     public static readonly TILEMAP_HEIGHT_TILES = 240;
@@ -667,11 +668,12 @@ export default class Level3 extends MBLevel {
     }
 
     protected breakArenaFloor(): void {
-        if(this.destructable !== undefined){
-            const dims = this.destructable.getDimensions();
+        const breakable = this.getTilemap("Breakable") as OrthogonalTilemap;
+        if(breakable !== undefined){
+            const dims = breakable.getDimensions();
             for(let y = 0; y < dims.y; y++){
                 for(let x = 0; x < dims.x; x++){
-                    this.destructable.setTileAtRowCol(new Vec2(x, y), 0);
+                    breakable.setTileAtRowCol(new Vec2(x, y), 0);
                 }
             }
             this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: this.tileDestroyedAudioKey, loop: false, holdReference: false});

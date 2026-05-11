@@ -58,7 +58,6 @@ export const MB_PROGRESS_SNAPSHOTS: Readonly<Record<ProgressSnapshotId, MBProgre
         upgrades: [
             UpgradeId.LANTERN,
             UpgradeId.FUR_COAT,
-            UpgradeId.DOUBLE_JUMP,
             UpgradeId.SHIELD,
             UpgradeId.REVIVAL_TOTEM_L1,
             UpgradeId.UPGRADED_BOOTS,

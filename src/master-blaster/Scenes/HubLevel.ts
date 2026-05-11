@@ -21,6 +21,7 @@ import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import MBLevel, { MBLayers } from "./MBLevel";
 import MainMenu from "./MainMenu";
 import {
+    getPendingSolenConversation,
     getSolenConversationForInteraction,
     SolenAnimations,
     SolenConversation,
@@ -56,6 +57,7 @@ export default class HubLevel extends MBLevel {
     private hubCaveBackground!: Rect;
     private campfireSprite: Sprite | null = null;
     private solen!: MBAnimatedSprite;
+    private solenTextBubbleSprite: Sprite | null = null;
     private solenPromptPanel!: Rect;
     private solenPromptLabel!: Label;
     private playerCanInteractWithSolen: boolean = false;
@@ -82,6 +84,10 @@ export default class HubLevel extends MBLevel {
     public static readonly CAMPFIRE_FRAME_SIZE = new Vec2(36, 48);
     public static readonly CAMPFIRE_POSITION = new Vec2(624, 896);
     public static readonly SOLEN_POSITION = new Vec2(656, 880);
+    public static readonly SOLEN_TEXT_BUBBLE_IMAGE_KEY = "SOLEN_TEXT_BUBBLE";
+    public static readonly SOLEN_TEXT_BUBBLE_IMAGE_PATH = "game_assets/art/textBubbles.png";
+    public static readonly SOLEN_TEXT_BUBBLE_OFFSET = new Vec2(5, -27);
+    public static readonly SOLEN_TEXT_BUBBLE_SCALE = new Vec2(0.15, 0.15);
 
     private static readonly DEFAULT_PORTAL_PLACEMENTS: Array<PortalPlacement> = [
         { col: 87, row: 81, frame: 2, targetSceneId: ProgressTargetSceneId.LEVEL_2 },
@@ -165,6 +171,7 @@ export default class HubLevel extends MBLevel {
         this.load.image(MBLevel.SHIELD_BROKEN_ICON_KEY, MBLevel.SHIELD_BROKEN_ICON_PATH);
         this.load.image(MBLevel.ASHEN_SEAL_FRAGMENT_ICON_KEY, MBLevel.ASHEN_SEAL_FRAGMENT_ICON_PATH);
         this.load.image(HubLevel.CAMPFIRE_IMAGE_KEY, HubLevel.CAMPFIRE_IMAGE_PATH);
+        this.load.image(HubLevel.SOLEN_TEXT_BUBBLE_IMAGE_KEY, HubLevel.SOLEN_TEXT_BUBBLE_IMAGE_PATH);
         this.load.audio(this.levelMusicKey, HubLevel.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, HubLevel.JUMP_AUDIO_PATH);
         this.load.audio(this.dashAudioKey, HubLevel.DASH_AUDIO_PATH);
@@ -189,6 +196,7 @@ export default class HubLevel extends MBLevel {
     public startScene(): void {
         super.startScene();
         this.initializeSolen();
+        this.initializeSolenTextBubble();
         const defaultPortalDestination = this.resolveProgressTargetScene(ProgressTargetSceneId.LEVEL_1);
         if(defaultPortalDestination !== null){
             this.travelPortalDestination = defaultPortalDestination;
@@ -200,6 +208,7 @@ export default class HubLevel extends MBLevel {
         super.updateScene(deltaT);
         this.updateHubBackground();
         this.updateSolenFacing();
+        this.updateSolenTextBubble();
         this.updateSolenPrompt();
 
         if(
@@ -297,24 +306,17 @@ export default class HubLevel extends MBLevel {
     protected initializeUI(): void {
         super.initializeUI();
 
-        const promptPosition = new Vec2(600 / this.getViewScale(), 684 / this.getViewScale());
+        const promptPosition = this.getInteractionPromptPosition();
         this.solenPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(220, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.solenPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.solenPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.solenPromptPanel.visible = false;
 
         this.solenPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Speak with Solen"
         });
-        this.solenPromptLabel.size.set(240, 24);
-        this.solenPromptLabel.font = "PixelSimple";
-        this.solenPromptLabel.fontSize = 18;
-        this.solenPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.solenPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.solenPromptPanel, this.solenPromptLabel);
     }
 
     protected initializeSolen(): void {
@@ -330,6 +332,26 @@ export default class HubLevel extends MBLevel {
         );
         this.solen.setGroup(MBPhysicsGroups.NPC);
         this.solen.animation.play(SolenAnimations.IDLE, true);
+    }
+
+    protected initializeSolenTextBubble(): void {
+        this.solenTextBubbleSprite = this.add.sprite(HubLevel.SOLEN_TEXT_BUBBLE_IMAGE_KEY, MBLayers.PRIMARY);
+        this.solenTextBubbleSprite.scale.copy(HubLevel.SOLEN_TEXT_BUBBLE_SCALE);
+        this.solenTextBubbleSprite.visible = false;
+        this.updateSolenTextBubble();
+    }
+
+    protected updateSolenTextBubble(): void {
+        if(this.solen === undefined || this.solenTextBubbleSprite === null){
+            return;
+        }
+
+        this.solenTextBubbleSprite.position.copy(
+            this.solen.position.clone().add(HubLevel.SOLEN_TEXT_BUBBLE_OFFSET)
+        );
+        this.solenTextBubbleSprite.visible = getPendingSolenConversation() !== null &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted;
     }
 
     protected updateSolenPrompt(): void {
@@ -370,6 +392,9 @@ export default class HubLevel extends MBLevel {
         this.playerCanInteractWithSolen = false;
         this.solenPromptPanel.visible = false;
         this.solenPromptLabel.visible = false;
+        if(this.solenTextBubbleSprite !== null){
+            this.solenTextBubbleSprite.visible = false;
+        }
         this.showDialogue(conversation.pages, () => this.completeSolenConversation(conversation));
     }
 

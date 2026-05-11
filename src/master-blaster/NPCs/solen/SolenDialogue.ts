@@ -12,6 +12,7 @@ export interface SolenConversation {
     pages: ReadonlyArray<SolenDialoguePage>;
     rewardUpgradeId?: UpgradeId;
     stageIndex?: number;
+    requiredBossId?: BossId;
     advanceStageOnComplete: boolean;
 }
 
@@ -50,6 +51,7 @@ const SOLEN_STAGE_CONVERSATIONS: ReadonlyArray<SolenConversation> = Object.freez
         promptText: "[E] Speak with Solen",
         rewardUpgradeId: UpgradeId.FUR_COAT,
         stageIndex: 1,
+        requiredBossId: BossId.LEVEL_2,
         advanceStageOnComplete: true,
         pages: Object.freeze([
             {
@@ -74,6 +76,7 @@ const SOLEN_STAGE_CONVERSATIONS: ReadonlyArray<SolenConversation> = Object.freez
         id: "solen_after_second_boss",
         promptText: "[E] Speak with Solen",
         stageIndex: 2,
+        requiredBossId: BossId.LEVEL_3,
         advanceStageOnComplete: true,
         pages: Object.freeze([
             {
@@ -93,7 +96,8 @@ const SOLEN_STAGE_CONVERSATIONS: ReadonlyArray<SolenConversation> = Object.freez
     {
         id: "solen_after_final_boss",
         promptText: "[E] Speak with Solen",
-        stageIndex: 4,
+        stageIndex: 3,
+        requiredBossId: BossId.LEVEL_4,
         advanceStageOnComplete: true,
         pages: Object.freeze([
             {
@@ -121,23 +125,22 @@ const SOLEN_AMBIENT_CONVERSATION: SolenConversation = Object.freeze({
 });
 
 export function getPendingSolenConversation(): SolenConversation | null {
-    const rawStage = MBProgress.getSolenConversationStage();
-    const normalizedStage = rawStage === 0 && MBProgress.hasUpgrade(UpgradeId.LANTERN) ? 1 : rawStage;
+    const normalizedStage = Math.min(
+        MBProgress.getSolenConversationStage(),
+        SOLEN_STAGE_CONVERSATIONS.length
+    );
 
     if(normalizedStage >= SOLEN_STAGE_CONVERSATIONS.length){
         return null;
     }
 
-    if(normalizedStage === 0){
-        return SOLEN_STAGE_CONVERSATIONS[normalizedStage];
-    }
+    for(let stage = SOLEN_STAGE_CONVERSATIONS.length - 1; stage >= normalizedStage; stage--){
+        const conversation = SOLEN_STAGE_CONVERSATIONS[stage];
+        if(conversation.requiredBossId !== undefined && !MBProgress.hasDefeatedBoss(conversation.requiredBossId)){
+            continue;
+        }
 
-    if(normalizedStage === 1 && MBProgress.hasDefeatedBoss(BossId.LEVEL_2)){
-        return SOLEN_STAGE_CONVERSATIONS[normalizedStage];
-    }
-
-    if(normalizedStage > 1 && MBProgress.getDefeatedBossCount() >= normalizedStage){
-        return SOLEN_STAGE_CONVERSATIONS[normalizedStage];
+        return conversation;
     }
 
     return null;

@@ -66,6 +66,14 @@ export type DialoguePage = {
     text: string;
 };
 
+type ShatterdiveShockwave = {
+    left: Rect;
+    right: Rect;
+    center: Vec2;
+    age: number;
+    duration: number;
+};
+
 /**
  * An abstract Master Blaster scene class combining all the things
  * all levels in the game will need.
@@ -174,6 +182,10 @@ export default abstract class MBLevel extends Scene {
     protected damagingTileDamage: number;
     protected damagingTileKnockbackSpeed: number;
     private damageableEnemies: Array<DamageableEnemyBinding>;
+    private playerWasGrounded: boolean;
+    private playerAirPeakY: number;
+    private playerAirborneTimer: number;
+    private shatterdiveShockwaves: Array<ShatterdiveShockwave>;
 
     /** Sound and music */
     protected levelMusicKey!: string;
@@ -226,6 +238,11 @@ export default abstract class MBLevel extends Scene {
     protected static readonly SHIELD_BROKEN_ICON_PATH = "game_assets/art/upgrades/shieldBroken.png";
     protected static readonly ASHEN_SEAL_FRAGMENT_ICON_KEY = "UPGRADE_ICON_ASHEN_SEAL_FRAGMENT";
     protected static readonly ASHEN_SEAL_FRAGMENT_ICON_PATH = "game_assets/art/upgrades/fragments.png";
+    protected static readonly INTERACTION_PROMPT_PANEL_SIZE = new Vec2(196, 40);
+    protected static readonly INTERACTION_PROMPT_LABEL_SIZE = new Vec2(220, 24);
+    protected static readonly INTERACTION_PROMPT_FONT_SIZE = 18;
+    protected static readonly INTERACTION_PROMPT_SCREEN_POSITION = new Vec2(600, 684);
+    protected static readonly INTERACTION_PROMPT_REFERENCE_ZOOM = 2.6;
 
     
     // HUD TUNING"
@@ -282,6 +299,14 @@ export default abstract class MBLevel extends Scene {
     protected static readonly REVIVAL_EFFECT_DURATION = 1.35;
     protected static readonly REVIVAL_FLASH_DURATION = 0.35;
     protected static readonly REVIVAL_INVULNERABILITY = 1.5;
+    protected static readonly SHATTERDIVE_MIN_FALL_DISTANCE = 120;
+    protected static readonly SHATTERDIVE_MIN_AIR_TIME = 0.3;
+    protected static readonly SHATTERDIVE_DAMAGE = 5;
+    protected static readonly SHATTERDIVE_KNOCKBACK_X = 56;
+    protected static readonly SHATTERDIVE_SHOCKWAVE_DURATION = 0.28;
+    protected static readonly SHATTERDIVE_SHOCKWAVE_HALF_WIDTH = 72;
+    protected static readonly SHATTERDIVE_SHOCKWAVE_HALF_HEIGHT = 12;
+    protected static readonly SHATTERDIVE_SHOCKWAVE_GROUND_OFFSET_Y = 5;
 
     // PAUSE TUNING
     // Change these values to adjust the pause menu layout without digging through UI creation code.
@@ -361,6 +386,10 @@ export default abstract class MBLevel extends Scene {
         this.damagingTileDamage = 5;
         this.damagingTileKnockbackSpeed = 170;
         this.damageableEnemies = new Array();
+        this.playerWasGrounded = true;
+        this.playerAirPeakY = 0;
+        this.playerAirborneTimer = 0;
+        this.shatterdiveShockwaves = new Array();
         this.playerCanInteractWithLevelEnd = false;
         this.levelEndTransitionStarted = false;
         this.deathTransitionStarted = false;
@@ -394,6 +423,7 @@ export default abstract class MBLevel extends Scene {
         // Initialize the player 
         this.initializePlayer(this.playerSpriteKey);
         this.initializeShieldState();
+        this.resetShatterdiveLandingTracking();
 
         // Initialize the level boss, if this scene has one
         this.initializeBoss();
@@ -457,10 +487,14 @@ export default abstract class MBLevel extends Scene {
         this.refreshBossUI();
         this.updateLevelEndPrompt();
         this.updateRevivalEffect(deltaT);
+        this.updateShatterdiveShockwaves(deltaT);
 
         if(!this.pauseMenuOpen && !this.deathTransitionStarted && !this.revivalInProgress){
             this.handleDamagingTileContact();
             this.handleOutOfBoundsDeath();
+            if(!this.hasBlockingModal() && !this.levelEndTransitionStarted){
+                this.updateShatterdiveLandingTracking(deltaT);
+            }
         }
     }
 
@@ -548,7 +582,11 @@ export default abstract class MBLevel extends Scene {
                 this.levelEndArea.disablePhysics();
             }
             else {
-                this.levelEndArea.enablePhysics();
+                if(this.isLevelEndAvailable()){
+                    this.levelEndArea.enablePhysics();
+                } else {
+                    this.levelEndArea.disablePhysics();
+                }
             }
         }
 
@@ -796,7 +834,14 @@ export default abstract class MBLevel extends Scene {
      * Handle the event when the player enters the level end area.
      */
     protected handleEnteredLevelEnd(): void {
-        if(this.levelEndTransitionStarted){
+        if(this.levelEndTransitionStarted || !this.canEnterLevelEnd()){
+            this.playerCanInteractWithLevelEnd = false;
+            if(this.levelEndPromptPanel !== undefined){
+                this.levelEndPromptPanel.visible = false;
+            }
+            if(this.levelEndPromptLabel !== undefined){
+                this.levelEndPromptLabel.visible = false;
+            }
             return;
         }
 
@@ -1005,6 +1050,8 @@ export default abstract class MBLevel extends Scene {
             this.levelEndArea === undefined ||
             this.player === undefined ||
             !this.levelEndArea.hasPhysics ||
+            !this.levelEndArea.active ||
+            !this.isLevelEndAvailable() ||
             !this.player.hasPhysics ||
             this.pauseMenuOpen ||
             this.upgradeRewardOpen ||
@@ -1036,6 +1083,39 @@ export default abstract class MBLevel extends Scene {
 
         this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
         this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
+    }
+
+    protected formatInteractionPrompt(panel: Rect, label: Label): void {
+        panel.size.copy(this.getInteractionPromptPanelSize());
+        panel.color = new Color(20, 18, 24, 0.94);
+        panel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
+        panel.visible = false;
+
+        label.size.copy(MBLevel.INTERACTION_PROMPT_LABEL_SIZE);
+        label.font = "PixelSimple";
+        label.fontSize = MBLevel.INTERACTION_PROMPT_FONT_SIZE;
+        label.textColor = new Color(246, 238, 214, 1);
+        label.visible = false;
+    }
+
+    protected getInteractionPromptPanelSize(): Vec2 {
+        const zoomScale = MBLevel.INTERACTION_PROMPT_REFERENCE_ZOOM / this.getViewScale();
+        return MBLevel.INTERACTION_PROMPT_PANEL_SIZE.scaled(zoomScale, zoomScale);
+    }
+
+    protected getInteractionPromptPosition(): Vec2 {
+        return new Vec2(
+            MBLevel.INTERACTION_PROMPT_SCREEN_POSITION.x / this.getViewScale(),
+            MBLevel.INTERACTION_PROMPT_SCREEN_POSITION.y / this.getViewScale()
+        );
+    }
+
+    protected isLevelEndAvailable(): boolean {
+        return true;
+    }
+
+    protected canEnterLevelEnd(): boolean {
+        return this.isLevelEndAvailable();
     }
     /**
      * This is the same healthbar found in The Yellow Submarine. I've adapted it slightly to account for the zoom factor. Other than that, the
@@ -1354,6 +1434,151 @@ export default abstract class MBLevel extends Scene {
 
     protected unregisterDamageableEnemy(sprite: AnimatedSprite): void {
         this.damageableEnemies = this.damageableEnemies.filter(binding => binding.sprite !== sprite);
+    }
+
+    protected damageRegisteredEnemiesInArea(area: AABB, amount: number, knockbackOrigin: Vec2, knockbackX: number): void {
+        for(let i = this.damageableEnemies.length - 1; i >= 0; i--){
+            const binding = this.damageableEnemies[i];
+
+            if(binding.damageable.isDefeated() && !binding.sprite.hasPhysics){
+                this.damageableEnemies.splice(i, 1);
+                continue;
+            }
+
+            if(binding.damageable.isDefeated() || !binding.sprite.hasPhysics){
+                continue;
+            }
+
+            const enemyAABB = binding.sprite.collisionShape.getBoundingRect();
+            if(area.overlapArea(enemyAABB) <= 0){
+                continue;
+            }
+
+            const damaged = binding.damageable.damage(amount);
+            if(!damaged){
+                continue;
+            }
+
+            const direction = binding.sprite.position.x >= knockbackOrigin.x ? 1 : -1;
+            binding.sprite.move(new Vec2(direction * knockbackX, -6));
+        }
+    }
+
+    protected resetShatterdiveLandingTracking(): void {
+        if(this.player === undefined){
+            this.playerWasGrounded = true;
+            this.playerAirPeakY = 0;
+            this.playerAirborneTimer = 0;
+            return;
+        }
+
+        this.playerWasGrounded = this.player.onGround;
+        this.playerAirPeakY = this.player.position.y;
+        this.playerAirborneTimer = 0;
+    }
+
+    protected updateShatterdiveLandingTracking(deltaT: number): void {
+        if(this.player === undefined || !this.player.hasPhysics){
+            this.resetShatterdiveLandingTracking();
+            return;
+        }
+
+        const isGrounded = this.player.onGround;
+
+        if(!this.playerWasGrounded && isGrounded){
+            const fallDistance = this.player.position.y - this.playerAirPeakY;
+            if(
+                MBProgress.hasUpgrade(UpgradeId.SHATTERDIVE) &&
+                this.playerAirborneTimer >= MBLevel.SHATTERDIVE_MIN_AIR_TIME &&
+                fallDistance >= MBLevel.SHATTERDIVE_MIN_FALL_DISTANCE
+            ){
+                this.triggerShatterdiveShockwave();
+            }
+        }
+
+        if(isGrounded){
+            this.playerAirPeakY = this.player.position.y;
+            this.playerAirborneTimer = 0;
+        } else {
+            if(this.playerWasGrounded){
+                this.playerAirPeakY = this.player.position.y;
+                this.playerAirborneTimer = 0;
+            } else {
+                this.playerAirPeakY = Math.min(this.playerAirPeakY, this.player.position.y);
+            }
+
+            this.playerAirborneTimer += deltaT;
+        }
+
+        this.playerWasGrounded = isGrounded;
+    }
+
+    protected triggerShatterdiveShockwave(): void {
+        if(this.player === undefined || !this.player.hasPhysics){
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const center = new Vec2(
+            this.player.position.x,
+            playerAABB.bottom - MBLevel.SHATTERDIVE_SHOCKWAVE_GROUND_OFFSET_Y
+        );
+        const shockwaveArea = new AABB(
+            center.clone(),
+            new Vec2(MBLevel.SHATTERDIVE_SHOCKWAVE_HALF_WIDTH, MBLevel.SHATTERDIVE_SHOCKWAVE_HALF_HEIGHT + 18)
+        );
+
+        this.damageRegisteredEnemiesInArea(
+            shockwaveArea,
+            MBLevel.SHATTERDIVE_DAMAGE,
+            center,
+            MBLevel.SHATTERDIVE_KNOCKBACK_X
+        );
+
+        const left = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: center.clone(),
+            size: new Vec2(2, MBLevel.SHATTERDIVE_SHOCKWAVE_HALF_HEIGHT)
+        });
+        const right = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: center.clone(),
+            size: new Vec2(2, MBLevel.SHATTERDIVE_SHOCKWAVE_HALF_HEIGHT)
+        });
+
+        left.color = new Color(228, 235, 255, 0.68);
+        right.color = new Color(228, 235, 255, 0.68);
+        left.borderColor = Color.TRANSPARENT;
+        right.borderColor = Color.TRANSPARENT;
+        this.shatterdiveShockwaves.push({
+            left,
+            right,
+            center,
+            age: 0,
+            duration: MBLevel.SHATTERDIVE_SHOCKWAVE_DURATION
+        });
+    }
+
+    protected updateShatterdiveShockwaves(deltaT: number): void {
+        for(let i = this.shatterdiveShockwaves.length - 1; i >= 0; i--){
+            const shockwave = this.shatterdiveShockwaves[i];
+            shockwave.age += deltaT;
+            const progress = Math.min(1, shockwave.age / shockwave.duration);
+            const halfWidth = Math.max(2, MBLevel.SHATTERDIVE_SHOCKWAVE_HALF_WIDTH * progress);
+            const height = Math.max(3, MBLevel.SHATTERDIVE_SHOCKWAVE_HALF_HEIGHT * (1 - progress * 0.45));
+            const alpha = Math.max(0, 0.68 * (1 - progress));
+
+            shockwave.left.size.set(halfWidth, height);
+            shockwave.left.position.set(shockwave.center.x - halfWidth / 2, shockwave.center.y);
+            shockwave.left.color.a = alpha;
+            shockwave.right.size.set(halfWidth, height);
+            shockwave.right.position.set(shockwave.center.x + halfWidth / 2, shockwave.center.y);
+            shockwave.right.color.a = alpha;
+
+            if(progress >= 1){
+                shockwave.left.destroy();
+                shockwave.right.destroy();
+                this.shatterdiveShockwaves.splice(i, 1);
+            }
+        }
     }
 
     protected refreshBossUI(): void {
@@ -2050,26 +2275,18 @@ export default abstract class MBLevel extends Scene {
             ]
         });
 
-        const promptTuning = MBLevel.LEVEL_END_PROMPT_TUNING;
-        const promptPosition = new Vec2(promptTuning.screenCenterX / this.getViewScale(), promptTuning.screenCenterY / this.getViewScale());
+        const promptPosition = this.getInteractionPromptPosition();
 
         this.levelEndPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(196, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.levelEndPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.levelEndPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.levelEndPromptPanel.visible = false;
 
         this.levelEndPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Enter Portal"
         });
-        this.levelEndPromptLabel.size.set(220, 24);
-        this.levelEndPromptLabel.font = "PixelSimple";
-        this.levelEndPromptLabel.fontSize = 18;
-        this.levelEndPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.levelEndPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.levelEndPromptPanel, this.levelEndPromptLabel);
 
         const viewCenter = this.viewport.getHalfSize();
         const viewSize = viewCenter.scaled(2);
@@ -2658,9 +2875,14 @@ export default abstract class MBLevel extends Scene {
         // Give the player it's AI
         this.player.addAI(PlayerController, { 
             weaponSystem: this.playerWeaponSystem, 
-            tilemap: this.wallsLayerKey
+            tilemap: this.wallsLayerKey,
+            wallLatchTilemaps: this.getAdditionalWallLatchTilemapKeys()
         });
         this.applyPlayerProgressEffects(true);
+    }
+
+    protected getAdditionalWallLatchTilemapKeys(): Array<string> {
+        return [];
     }
     /**
      * Initializes the viewport

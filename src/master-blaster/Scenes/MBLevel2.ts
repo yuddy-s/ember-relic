@@ -6,7 +6,6 @@ import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import Label from "../../Wolfie2D/Nodes/UIElements/Label";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
-import Color from "../../Wolfie2D/Utils/Color";
 import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import { MBEvents } from "../MBEvents";
@@ -41,6 +40,8 @@ export default class Level2 extends MBLevel {
     private caveVignette!: Sprite;
     private blindVignette!: Sprite;
     private levelEndPortal: Sprite | null = null;
+    private hubReturnPortal: Sprite | null = null;
+    private hubReturnPortalArea: Rect | null = null;
     private healthBuffCarrierSlime: MBAnimatedSprite | null = null;
     private healthBuffCarrierIcon: Sprite | null = null;
     private healthBuffPickupPromptPanel!: Rect;
@@ -59,6 +60,7 @@ export default class Level2 extends MBLevel {
     private healthBuffRingDropped: boolean = false;
     private playerCanPickUpHealthBuff: boolean = false;
     private playerCanPickUpShield: boolean = false;
+    private playerCanUseHubReturnPortal: boolean = false;
     private level2BossProgressRecorded: boolean = false;
 
     // new Vec2(1536, 752) 2600, 1050 is testing boss coord spawn
@@ -149,6 +151,7 @@ export default class Level2 extends MBLevel {
     public static readonly PORTAL_FRAME_COLUMNS = 2;
     public static readonly PORTAL_FRAME_SIZE = new Vec2(32, 61);
     public static readonly GREEN_RIGHT_PORTAL_FRAME = 7;
+    public static readonly HUB_RETURN_PORTAL_POSITION = new Vec2(1312, 720);
 
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
     public static readonly LEVEL_MUSIC_PATH = "game_assets/music/level2_music.wav";
@@ -288,6 +291,7 @@ export default class Level2 extends MBLevel {
             this.collectShieldPickup();
         }
 
+        this.updateLevelEndPortalState();
         this.updateBossRewardState();
         this.updateBossDefeatVignetteTimer(deltaT);
         this.updateVisibilityVignettes(deltaT);
@@ -482,7 +486,16 @@ export default class Level2 extends MBLevel {
             frameRow * Level2.PORTAL_FRAME_SIZE.y
         ));
         portal.position.copy(this.levelEndPosition);
+        portal.visible = false;
         this.levelEndPortal = portal;
+
+        this.hubReturnPortal = this.createGreenPortal(Level2.HUB_RETURN_PORTAL_POSITION);
+        this.hubReturnPortalArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: Level2.HUB_RETURN_PORTAL_POSITION.clone(),
+            size: this.levelEndHalfSize.clone()
+        });
+        this.hubReturnPortalArea.addPhysics(undefined, undefined, false, true);
+        this.hubReturnPortalArea.visible = false;
 
         this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
             position: this.levelEndPosition.clone(),
@@ -490,6 +503,110 @@ export default class Level2 extends MBLevel {
         });
         this.levelEndArea.addPhysics(undefined, undefined, false, true);
         this.levelEndArea.visible = false;
+        this.levelEndArea.disablePhysics();
+    }
+
+    protected createGreenPortal(position: Vec2): Sprite {
+        const portal = this.add.sprite(Level2.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
+        const frameCol = Level2.GREEN_RIGHT_PORTAL_FRAME % Level2.PORTAL_FRAME_COLUMNS;
+        const frameRow = Math.floor(Level2.GREEN_RIGHT_PORTAL_FRAME / Level2.PORTAL_FRAME_COLUMNS);
+
+        portal.size.copy(Level2.PORTAL_FRAME_SIZE);
+        portal.scale.copy(this.tilemapScale);
+        portal.setImageOffset(new Vec2(
+            frameCol * Level2.PORTAL_FRAME_SIZE.x,
+            frameRow * Level2.PORTAL_FRAME_SIZE.y
+        ));
+        portal.position.copy(position);
+        portal.visible = true;
+        return portal;
+    }
+
+    protected updateLevelEndPortalState(): void {
+        if(
+            this.level2Boss === undefined ||
+            this.levelEndPortal === null ||
+            this.levelEndArea === undefined ||
+            !this.level2Boss.isDefeated()
+        ){
+            return;
+        }
+
+        const dyingStillPlaying = this.level2BossSprite !== undefined &&
+            this.level2BossSprite.animation.isPlaying(VorrathAnimations.DYING);
+        if(dyingStillPlaying){
+            return;
+        }
+
+        if(!this.levelEndPortal.visible){
+            this.levelEndPortal.visible = true;
+            this.levelEndArea.enablePhysics();
+        }
+    }
+
+    protected isLevelEndAvailable(): boolean {
+        return this.levelEndPortal !== null &&
+            this.levelEndPortal.visible &&
+            this.level2Boss !== undefined &&
+            this.level2Boss.isDefeated();
+    }
+
+    protected canEnterLevelEnd(): boolean {
+        return this.playerCanUseHubReturnPortal || this.isLevelEndAvailable();
+    }
+
+    protected updateLevelEndPrompt(): void {
+        if(
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted ||
+            this.deathTransitionStarted
+        ){
+            this.hideLevel2PortalPrompt();
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const usingHubReturnPortal = this.isPlayerInPortalPromptRange(playerAABB, this.hubReturnPortalArea);
+        const usingBossPortal = !usingHubReturnPortal &&
+            this.isLevelEndAvailable() &&
+            this.isPlayerInPortalPromptRange(playerAABB, this.levelEndArea);
+
+        this.playerCanUseHubReturnPortal = usingHubReturnPortal;
+        this.playerCanInteractWithLevelEnd = usingHubReturnPortal || usingBossPortal;
+        this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.text = "[E] Enter Portal";
+
+        if(this.playerCanInteractWithLevelEnd){
+            this.travelPortalDestination = HubLevel;
+        }
+    }
+
+    protected isPlayerInPortalPromptRange(playerAABB: AABB, portalArea: Rect | null): boolean {
+        if(portalArea === null || !portalArea.hasPhysics || !portalArea.active){
+            return false;
+        }
+
+        const portalAABB = portalArea.collisionShape.getBoundingRect();
+        const promptRangeAABB = new AABB(
+            portalAABB.center.clone(),
+            new Vec2(portalAABB.halfSize.x + 36, portalAABB.halfSize.y + 28)
+        );
+        return playerAABB.overlapArea(promptRangeAABB) > 0;
+    }
+
+    protected hideLevel2PortalPrompt(): void {
+        this.playerCanInteractWithLevelEnd = false;
+        this.playerCanUseHubReturnPortal = false;
+        if(this.levelEndPromptPanel !== undefined){
+            this.levelEndPromptPanel.visible = false;
+        }
+        if(this.levelEndPromptLabel !== undefined){
+            this.levelEndPromptLabel.visible = false;
+        }
     }
 
     protected initializeUI(): void {
@@ -506,42 +623,28 @@ export default class Level2 extends MBLevel {
 
         super.initializeUI();
 
-        const promptPosition = new Vec2(600 / this.getViewScale(), 720 / this.getViewScale());
+        const promptPosition = this.getInteractionPromptPosition();
         this.healthBuffPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(214, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.healthBuffPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.healthBuffPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.healthBuffPickupPromptPanel.visible = false;
 
         this.healthBuffPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Pick Up HP Ring"
         });
-        this.healthBuffPickupPromptLabel.size.set(240, 24);
-        this.healthBuffPickupPromptLabel.font = "PixelSimple";
-        this.healthBuffPickupPromptLabel.fontSize = 18;
-        this.healthBuffPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.healthBuffPickupPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.healthBuffPickupPromptPanel, this.healthBuffPickupPromptLabel);
 
         this.shieldPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(214, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.shieldPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.shieldPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.shieldPickupPromptPanel.visible = false;
 
         this.shieldPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Pick up Shield"
         });
-        this.shieldPickupPromptLabel.size.set(240, 24);
-        this.shieldPickupPromptLabel.font = "PixelSimple";
-        this.shieldPickupPromptLabel.fontSize = 18;
-        this.shieldPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.shieldPickupPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.shieldPickupPromptPanel, this.shieldPickupPromptLabel);
 
         this.updateVisibilityVignettes(1);
     }

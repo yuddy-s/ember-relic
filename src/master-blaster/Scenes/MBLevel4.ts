@@ -6,13 +6,13 @@ import MBLevel, { MBLayers } from "./MBLevel";
 import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
 import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
 import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
+import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
 import Label from "../../Wolfie2D/Nodes/UIElements/Label";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
-import Color from "../../Wolfie2D/Utils/Color";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import HubLevel from "./HubLevel";
@@ -39,6 +39,8 @@ export default class Level4 extends MBLevel {
     private playerCanInsertBossGateFragments: boolean = false;
     private bossGatePromptPanel!: Rect;
     private bossGatePromptLabel!: Label;
+    private hubReturnPortal: Sprite | null = null;
+    private hubReturnPortalArea: Rect | null = null;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     public static readonly PLAYER_SPAWN = new Vec2(208, 384);
@@ -65,6 +67,8 @@ export default class Level4 extends MBLevel {
     public static readonly PORTAL_FRAME_COLUMNS = 2;
     public static readonly PORTAL_FRAME_SIZE = new Vec2(32, 61);
     public static readonly GREEN_RIGHT_PORTAL_FRAME = 6;
+    public static readonly GREEN_LEFT_PORTAL_FRAME = 7;
+    public static readonly HUB_RETURN_PORTAL_POSITION = new Vec2(160, 400);
 
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
@@ -174,27 +178,24 @@ export default class Level4 extends MBLevel {
         this.viewport.setBounds(0, 0, worldWidth, worldHeight);
     }
 
+    protected getAdditionalWallLatchTilemapKeys(): Array<string> {
+        return [Level4.BOSS_GATE_LAYER_KEY];
+    }
+
     protected initializeUI(): void {
         super.initializeUI();
 
-        const promptPosition = new Vec2(600 / this.getViewScale(), 720 / this.getViewScale());
+        const promptPosition = this.getInteractionPromptPosition();
         this.bossGatePromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(360, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.bossGatePromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.bossGatePromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.bossGatePromptPanel.visible = false;
 
         this.bossGatePromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] to insert Ashen Seal fragments"
         });
-        this.bossGatePromptLabel.size.set(390, 24);
-        this.bossGatePromptLabel.font = "PixelSimple";
-        this.bossGatePromptLabel.fontSize = 18;
-        this.bossGatePromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.bossGatePromptLabel.visible = false;
+        this.formatInteractionPrompt(this.bossGatePromptPanel, this.bossGatePromptLabel);
     }
 
     protected initializeLevelEnds(): void {
@@ -210,12 +211,90 @@ export default class Level4 extends MBLevel {
         ));
         portal.position.copy(this.levelEndPosition);
 
+        this.hubReturnPortal = this.createGreenPortal(Level4.HUB_RETURN_PORTAL_POSITION);
+        this.hubReturnPortalArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: Level4.HUB_RETURN_PORTAL_POSITION.clone(),
+            size: this.levelEndHalfSize.clone()
+        });
+        this.hubReturnPortalArea.addPhysics(undefined, undefined, false, true);
+        this.hubReturnPortalArea.visible = false;
+
         this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
             position: this.levelEndPosition.clone(),
             size: this.levelEndHalfSize.clone()
         });
         this.levelEndArea.addPhysics(undefined, undefined, false, true);
         this.levelEndArea.visible = false;
+    }
+
+    protected createGreenPortal(position: Vec2): Sprite {
+        const portal = this.add.sprite(Level4.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
+        const frameCol = Level4.GREEN_LEFT_PORTAL_FRAME % Level4.PORTAL_FRAME_COLUMNS;
+        const frameRow = Math.floor(Level4.GREEN_RIGHT_PORTAL_FRAME / Level4.PORTAL_FRAME_COLUMNS);
+
+        portal.size.copy(Level4.PORTAL_FRAME_SIZE);
+        portal.scale.copy(this.tilemapScale);
+        portal.setImageOffset(new Vec2(
+            frameCol * Level4.PORTAL_FRAME_SIZE.x,
+            frameRow * Level4.PORTAL_FRAME_SIZE.y
+        ));
+        portal.position.copy(position);
+        portal.visible = true;
+        return portal;
+    }
+
+    protected updateLevelEndPrompt(): void {
+        if(
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted ||
+            this.deathTransitionStarted
+        ){
+            this.hideLevel4PortalPrompt();
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        this.playerCanInteractWithLevelEnd =
+            this.isPlayerInPortalPromptRange(playerAABB, this.hubReturnPortalArea) ||
+            this.isPlayerInPortalPromptRange(playerAABB, this.levelEndArea);
+
+        this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.text = "[E] Enter Portal";
+
+        if(this.playerCanInteractWithLevelEnd){
+            this.travelPortalDestination = HubLevel;
+        }
+    }
+
+    protected isPlayerInPortalPromptRange(playerAABB: AABB, portalArea: Rect | null): boolean {
+        if(portalArea === null || !portalArea.hasPhysics || !portalArea.active){
+            return false;
+        }
+
+        const portalAABB = portalArea.collisionShape.getBoundingRect();
+        const promptTuning = MBLevel.LEVEL_END_PROMPT_TUNING;
+        const promptRangeAABB = new AABB(
+            portalAABB.center.clone(),
+            new Vec2(
+                portalAABB.halfSize.x + promptTuning.rangePaddingX,
+                portalAABB.halfSize.y + promptTuning.rangePaddingY
+            )
+        );
+        return playerAABB.overlapArea(promptRangeAABB) > 0;
+    }
+
+    protected hideLevel4PortalPrompt(): void {
+        this.playerCanInteractWithLevelEnd = false;
+        if(this.levelEndPromptPanel !== undefined){
+            this.levelEndPromptPanel.visible = false;
+        }
+        if(this.levelEndPromptLabel !== undefined){
+            this.levelEndPromptLabel.visible = false;
+        }
     }
 
     protected updateBossGate(deltaT: number): void {

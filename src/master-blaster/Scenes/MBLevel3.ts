@@ -12,7 +12,6 @@ import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
-import Color from "../../Wolfie2D/Utils/Color";
 import MainMenu from "./MainMenu";
 import MBLevel, { MBLayers } from "./MBLevel";
 import Level1 from "./MBLevel1";
@@ -77,8 +76,15 @@ export default class Level3 extends MBLevel {
     private doubleJumpPickupPromptPanel!: Rect;
     private doubleJumpPickupPromptLabel!: Label;
     private playerCanPickUpDoubleJump: boolean = false;
+    private shatterdivePickupSprite: Sprite | null = null;
+    private shatterdivePickupPromptPanel!: Rect;
+    private shatterdivePickupPromptLabel!: Label;
+    private playerCanPickUpShatterdive: boolean = false;
     private arenaDropShakeTimer: number = 0;
     private levelEndPortal: Sprite | null = null;
+    private hubReturnPortal: Sprite | null = null;
+    private hubReturnPortalArea: Rect | null = null;
+    private playerCanUseHubReturnPortal: boolean = false;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     //112, 2700
@@ -101,6 +107,8 @@ export default class Level3 extends MBLevel {
     public static readonly PORTAL_FRAME_COLUMNS = 2;
     public static readonly PORTAL_FRAME_SIZE = new Vec2(32, 61);
     public static readonly GREEN_RIGHT_PORTAL_FRAME = 6;
+    public static readonly GREEN_LEFT_PORTAL_FRAME = 7;
+    public static readonly HUB_RETURN_PORTAL_POSITION = new Vec2(32, 2720);
 
     // ── Background ────────────────────────────────────────────────────────────
     public static readonly BACKGROUND_IMAGE_KEY = "LEVEL3_SNOW_BACKGROUND";
@@ -123,6 +131,9 @@ export default class Level3 extends MBLevel {
     public static readonly DOUBLE_JUMP_PICKUP_POSITION = new Vec2(3984, 288);
     public static readonly DOUBLE_JUMP_PICKUP_SCALE = new Vec2(0.24, 0.24);
     public static readonly DOUBLE_JUMP_PICKUP_HALF_SIZE = new Vec2(24, 24);
+    public static readonly SHATTERDIVE_PICKUP_POSITION = new Vec2(2935, 1088);
+    public static readonly SHATTERDIVE_PICKUP_SCALE = new Vec2(0.24, 0.24);
+    public static readonly SHATTERDIVE_PICKUP_HALF_SIZE = new Vec2(24, 24);
 
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
@@ -294,6 +305,7 @@ export default class Level3 extends MBLevel {
         this.initializeDamageUpPickup();
         this.initializeSpeedUpPickup();
         this.initializeDoubleJumpPickup();
+        this.initializeShatterdivePickup();
         this.updateSnowBackground();
     }
 
@@ -305,6 +317,7 @@ export default class Level3 extends MBLevel {
         this.updateDamageUpPickupPrompt();
         this.updateSpeedUpPickupPrompt();
         this.updateDoubleJumpPickupPrompt();
+        this.updateShatterdivePickupPrompt();
         this.updateBossRewardState();
 
         if (this.arenaDropShakeTimer > 0) {
@@ -368,6 +381,16 @@ export default class Level3 extends MBLevel {
             Input.isKeyJustPressed("e")
         ){
             this.collectDoubleJumpPickup();
+        }
+
+        if(
+            this.playerCanPickUpShatterdive &&
+            !this.pauseMenuOpen &&
+            !this.hasBlockingModal() &&
+            !this.levelEndTransitionStarted &&
+            Input.isKeyJustPressed("e")
+        ){
+            this.collectShatterdivePickup();
         }
     }
 
@@ -464,81 +487,81 @@ export default class Level3 extends MBLevel {
         this.doubleJumpPickupSprite.scale.copy(Level3.DOUBLE_JUMP_PICKUP_SCALE);
     }
 
+    protected initializeShatterdivePickup(): void {
+        this.playerCanPickUpShatterdive = false;
+
+        if(this.shatterdivePickupSprite !== null){
+            this.shatterdivePickupSprite.destroy();
+            this.shatterdivePickupSprite = null;
+        }
+
+        if(MBProgress.hasUpgrade(UpgradeId.SHATTERDIVE)){
+            return;
+        }
+
+        this.shatterdivePickupSprite = this.add.sprite(MBLevel.SHATTERDIVE_ICON_KEY, MBLayers.PRIMARY);
+        this.shatterdivePickupSprite.position.copy(Level3.SHATTERDIVE_PICKUP_POSITION);
+        this.shatterdivePickupSprite.scale.copy(Level3.SHATTERDIVE_PICKUP_SCALE);
+    }
+
     protected initializeUI(): void {
         super.initializeUI();
 
-        const promptPosition = new Vec2(600 / this.getViewScale(), 720 / this.getViewScale());
+        const promptPosition = this.getInteractionPromptPosition();
         this.icePickPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(224, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.icePickPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.icePickPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.icePickPickupPromptPanel.visible = false;
 
         this.icePickPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Pick up Ice Pick"
         });
-        this.icePickPickupPromptLabel.size.set(250, 24);
-        this.icePickPickupPromptLabel.font = "PixelSimple";
-        this.icePickPickupPromptLabel.fontSize = 18;
-        this.icePickPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.icePickPickupPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.icePickPickupPromptPanel, this.icePickPickupPromptLabel);
 
         this.damageUpPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(212, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.damageUpPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.damageUpPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.damageUpPickupPromptPanel.visible = false;
 
         this.damageUpPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Pick up Dmg Up"
         });
-        this.damageUpPickupPromptLabel.size.set(240, 24);
-        this.damageUpPickupPromptLabel.font = "PixelSimple";
-        this.damageUpPickupPromptLabel.fontSize = 18;
-        this.damageUpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.damageUpPickupPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.damageUpPickupPromptPanel, this.damageUpPickupPromptLabel);
 
         this.speedUpPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(230, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.speedUpPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.speedUpPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.speedUpPickupPromptPanel.visible = false;
 
         this.speedUpPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Pick up Speed Up"
         });
-        this.speedUpPickupPromptLabel.size.set(250, 24);
-        this.speedUpPickupPromptLabel.font = "PixelSimple";
-        this.speedUpPickupPromptLabel.fontSize = 18;
-        this.speedUpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.speedUpPickupPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.speedUpPickupPromptPanel, this.speedUpPickupPromptLabel);
 
         this.doubleJumpPickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
             position: promptPosition,
-            size: new Vec2(270, 40)
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
         });
-        this.doubleJumpPickupPromptPanel.color = new Color(20, 18, 24, 0.94);
-        this.doubleJumpPickupPromptPanel.borderColor = MBLevel.HEALTH_BAR_BORDER_COLOR;
-        this.doubleJumpPickupPromptPanel.visible = false;
 
         this.doubleJumpPickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: promptPosition,
             text: "[E] Pick up Double Jump"
         });
-        this.doubleJumpPickupPromptLabel.size.set(270, 24);
-        this.doubleJumpPickupPromptLabel.font = "PixelSimple";
-        this.doubleJumpPickupPromptLabel.fontSize = 18;
-        this.doubleJumpPickupPromptLabel.textColor = new Color(246, 238, 214, 1);
-        this.doubleJumpPickupPromptLabel.visible = false;
+        this.formatInteractionPrompt(this.doubleJumpPickupPromptPanel, this.doubleJumpPickupPromptLabel);
+
+        this.shatterdivePickupPromptPanel = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.UI, {
+            position: promptPosition,
+            size: MBLevel.INTERACTION_PROMPT_PANEL_SIZE.clone()
+        });
+
+        this.shatterdivePickupPromptLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
+            position: promptPosition,
+            text: "[E] Pick up Shatterdive"
+        });
+        this.formatInteractionPrompt(this.shatterdivePickupPromptPanel, this.shatterdivePickupPromptLabel);
     }
 
     protected updateIcePickPickupPrompt(): void {
@@ -705,6 +728,47 @@ export default class Level3 extends MBLevel {
             this.grantUpgrade(UpgradeId.DOUBLE_JUMP);
             this.triggerDoubleJumpArenaDrop();
         });
+    }
+
+    protected updateShatterdivePickupPrompt(): void {
+        if(
+            this.shatterdivePickupSprite === null ||
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted
+        ){
+            this.playerCanPickUpShatterdive = false;
+            this.shatterdivePickupPromptPanel.visible = false;
+            this.shatterdivePickupPromptLabel.visible = false;
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const pickupAABB = new AABB(
+            this.shatterdivePickupSprite.position.clone(),
+            Level3.SHATTERDIVE_PICKUP_HALF_SIZE.clone()
+        );
+
+        this.playerCanPickUpShatterdive = playerAABB.overlapArea(pickupAABB) > 0;
+        this.shatterdivePickupPromptPanel.visible = this.playerCanPickUpShatterdive;
+        this.shatterdivePickupPromptLabel.visible = this.playerCanPickUpShatterdive;
+    }
+
+    protected collectShatterdivePickup(): void {
+        if(this.shatterdivePickupSprite === null){
+            return;
+        }
+
+        this.playerCanPickUpShatterdive = false;
+        this.shatterdivePickupPromptPanel.visible = false;
+        this.shatterdivePickupPromptLabel.visible = false;
+        this.shatterdivePickupSprite.destroy();
+        this.shatterdivePickupSprite = null;
+
+        this.grantUpgrade(UpgradeId.SHATTERDIVE);
+        this.showUpgradeRewardPopup(UpgradeId.SHATTERDIVE);
     }
 
     protected triggerDoubleJumpArenaDrop(): void {
@@ -977,6 +1041,14 @@ export default class Level3 extends MBLevel {
         portal.visible = false;
         this.levelEndPortal = portal;
 
+        this.hubReturnPortal = this.createGreenPortal(Level3.HUB_RETURN_PORTAL_POSITION);
+        this.hubReturnPortalArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
+            position: Level3.HUB_RETURN_PORTAL_POSITION.clone(),
+            size: this.levelEndHalfSize.clone()
+        });
+        this.hubReturnPortalArea.addPhysics(undefined, undefined, false, true);
+        this.hubReturnPortalArea.visible = false;
+
         this.levelEndArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
             position: this.levelEndPosition.clone(),
             size: this.levelEndHalfSize.clone()
@@ -984,6 +1056,87 @@ export default class Level3 extends MBLevel {
         this.levelEndArea.addPhysics(undefined, undefined, false, true);
         this.levelEndArea.visible = false;
         this.levelEndArea.disablePhysics();
+    }
+
+    protected createGreenPortal(position: Vec2): Sprite {
+        const portal = this.add.sprite(Level3.PORTAL_IMAGE_KEY, MBLayers.PRIMARY);
+        const frameCol = Level3.GREEN_LEFT_PORTAL_FRAME % Level3.PORTAL_FRAME_COLUMNS;
+        const frameRow = Math.floor(Level3.GREEN_RIGHT_PORTAL_FRAME / Level3.PORTAL_FRAME_COLUMNS);
+
+        portal.size.copy(Level3.PORTAL_FRAME_SIZE);
+        portal.scale.copy(this.tilemapScale);
+        portal.setImageOffset(new Vec2(
+            frameCol * Level3.PORTAL_FRAME_SIZE.x,
+            frameRow * Level3.PORTAL_FRAME_SIZE.y
+        ));
+        portal.position.copy(position);
+        portal.visible = true;
+        return portal;
+    }
+
+    protected isLevelEndAvailable(): boolean {
+        return this.levelEndPortal !== null &&
+            this.levelEndPortal.visible &&
+            this.level3Boss !== undefined &&
+            this.level3Boss.isDefeated();
+    }
+
+    protected canEnterLevelEnd(): boolean {
+        return this.playerCanUseHubReturnPortal || this.isLevelEndAvailable();
+    }
+
+    protected updateLevelEndPrompt(): void {
+        if(
+            this.player === undefined ||
+            !this.player.hasPhysics ||
+            this.pauseMenuOpen ||
+            this.hasBlockingModal() ||
+            this.levelEndTransitionStarted ||
+            this.deathTransitionStarted
+        ){
+            this.hideLevel3PortalPrompt();
+            return;
+        }
+
+        const playerAABB = this.player.collisionShape.getBoundingRect();
+        const usingHubReturnPortal = this.isPlayerInPortalPromptRange(playerAABB, this.hubReturnPortalArea);
+        const usingBossPortal = !usingHubReturnPortal &&
+            this.isLevelEndAvailable() &&
+            this.isPlayerInPortalPromptRange(playerAABB, this.levelEndArea);
+
+        this.playerCanUseHubReturnPortal = usingHubReturnPortal;
+        this.playerCanInteractWithLevelEnd = usingHubReturnPortal || usingBossPortal;
+        this.levelEndPromptPanel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.visible = this.playerCanInteractWithLevelEnd;
+        this.levelEndPromptLabel.text = "[E] Enter Portal";
+
+        if(this.playerCanInteractWithLevelEnd){
+            this.travelPortalDestination = HubLevel;
+        }
+    }
+
+    protected isPlayerInPortalPromptRange(playerAABB: AABB, portalArea: Rect | null): boolean {
+        if(portalArea === null || !portalArea.hasPhysics || !portalArea.active){
+            return false;
+        }
+
+        const portalAABB = portalArea.collisionShape.getBoundingRect();
+        const promptRangeAABB = new AABB(
+            portalAABB.center.clone(),
+            new Vec2(portalAABB.halfSize.x + 36, portalAABB.halfSize.y + 28)
+        );
+        return playerAABB.overlapArea(promptRangeAABB) > 0;
+    }
+
+    protected hideLevel3PortalPrompt(): void {
+        this.playerCanInteractWithLevelEnd = false;
+        this.playerCanUseHubReturnPortal = false;
+        if(this.levelEndPromptPanel !== undefined){
+            this.levelEndPromptPanel.visible = false;
+        }
+        if(this.levelEndPromptLabel !== undefined){
+            this.levelEndPromptLabel.visible = false;
+        }
     }
 
     // ── Floor snap helper (same logic as Level2.placeBossOnFloor) ────────────

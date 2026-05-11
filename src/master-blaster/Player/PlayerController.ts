@@ -105,6 +105,7 @@ export default class PlayerController extends StateMachineAI {
 
     protected tilemap: OrthogonalTilemap;
     protected slidingTilemap: OrthogonalTilemap | null;
+    protected additionalWallLatchTilemaps: Array<OrthogonalTilemap>;
     // protected cannon: Sprite;
     protected weapon: PlayerWeapon;
 
@@ -131,6 +132,9 @@ export default class PlayerController extends StateMachineAI {
 
         this.tilemap = this.owner.getScene().getTilemap(options.tilemap) as OrthogonalTilemap;
         this.slidingTilemap = this.owner.getScene().getTilemap("Sliding") as OrthogonalTilemap | null;
+        this.additionalWallLatchTilemaps = (options.wallLatchTilemaps ?? [])
+            .map((tilemapKey: string) => this.owner.getScene().getTilemap(tilemapKey) as OrthogonalTilemap | null)
+            .filter((tilemap: OrthogonalTilemap | null): tilemap is OrthogonalTilemap => tilemap !== null && tilemap !== undefined);
         this.speed = this.getBaseMoveSpeed();
         this.velocity = Vec2.ZERO;
 
@@ -429,6 +433,13 @@ export default class PlayerController extends StateMachineAI {
         const tile = this.tilemap.getColRowAt(new Vec2(x, y));
         if(this.tilemap.isTileCollidable(tile.x, tile.y)){
             return true;
+        }
+
+        for(const wallLatchTilemap of this.additionalWallLatchTilemaps){
+            const wallLatchTile = wallLatchTilemap.getColRowAt(new Vec2(x, y));
+            if(wallLatchTilemap.isTileCollidable(wallLatchTile.x, wallLatchTile.y)){
+                return true;
+            }
         }
 
         if(this.slidingTilemap === null || this.slidingTilemap === undefined){

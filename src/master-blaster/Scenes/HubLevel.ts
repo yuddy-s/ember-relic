@@ -409,6 +409,10 @@ export default class HubLevel extends MBLevel {
                     Math.max(MBProgress.getSolenConversationStage(), conversation.stageIndex + 1)
                 );
             }
+
+            if(conversation.id === "solen_after_final_boss"){
+                this.startGameEndTransition("THE END");
+            }
         };
 
         if(conversation.rewardUpgradeId !== undefined && !MBProgress.hasUpgrade(conversation.rewardUpgradeId)){

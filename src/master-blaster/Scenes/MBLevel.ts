@@ -153,9 +153,12 @@ export default abstract class MBLevel extends Scene {
     protected levelEndTransitionStarted: boolean;
     protected deathTransitionStarted: boolean;
     protected deathLabel!: Label;
+    protected gameEndTransitionStarted: boolean;
+    protected gameEndTextFadeTimer: number;
 
     // Level end transition timer and graphic
     protected levelTransitionTimer!: Timer;
+    protected gameEndReturnTimer!: Timer;
     protected levelTransitionScreen!: Rect;
 
     /** The keys to the tilemap and different tilemap layers */
@@ -312,6 +315,8 @@ export default abstract class MBLevel extends Scene {
     protected static readonly SHATTERDIVE_SHOCKWAVE_HALF_WIDTH = 72;
     protected static readonly SHATTERDIVE_SHOCKWAVE_HALF_HEIGHT = 12;
     protected static readonly SHATTERDIVE_SHOCKWAVE_GROUND_OFFSET_Y = 5;
+    protected static readonly GAME_END_RETURN_DELAY = 5600;
+    protected static readonly GAME_END_TEXT_FADE_DURATION = 1.2;
 
     // PAUSE TUNING
     // Change these values to adjust the pause menu layout without digging through UI creation code.
@@ -398,6 +403,8 @@ export default abstract class MBLevel extends Scene {
         this.playerCanInteractWithLevelEnd = false;
         this.levelEndTransitionStarted = false;
         this.deathTransitionStarted = false;
+        this.gameEndTransitionStarted = false;
+        this.gameEndTextFadeTimer = 0;
     }
 
     public initScene(init: Record<string, any>): void {
@@ -410,6 +417,8 @@ export default abstract class MBLevel extends Scene {
         this.playerCanInteractWithLevelEnd = false;
         this.levelEndTransitionStarted = false;
         this.deathTransitionStarted = false;
+        this.gameEndTransitionStarted = false;
+        this.gameEndTextFadeTimer = 0;
         this.revivalEffectTimer = 0;
         this.revivalInProgress = false;
 
@@ -447,6 +456,9 @@ export default abstract class MBLevel extends Scene {
         this.levelEndTimer = new Timer(3000, () => {
             // After the level end timer ends, fade to black and then go to the next scene
             this.levelTransitionScreen.tweens.play("fadeIn");
+        });
+        this.gameEndReturnTimer = new Timer(MBLevel.GAME_END_RETURN_DELAY, () => {
+            this.sceneManager.changeToScene(SplashScreen);
         });
 
         // Initially disable player movement
@@ -493,6 +505,7 @@ export default abstract class MBLevel extends Scene {
         this.updateLevelEndPrompt();
         this.updateRevivalEffect(deltaT);
         this.updateShatterdiveShockwaves(deltaT);
+        this.updateGameEndTransition(deltaT);
 
         if(!this.pauseMenuOpen && !this.deathTransitionStarted && !this.revivalInProgress){
             this.handleDamagingTileContact();
@@ -1048,6 +1061,56 @@ export default abstract class MBLevel extends Scene {
         this.deathLabel.visible = true;
         this.levelTransitionScreen.tweens.play("deathFadeIn");
         this.deathLabel.tweens.play("deathFadeIn");
+    }
+
+    protected startGameEndTransition(labelText: string = "THE END"): void {
+        if(this.levelEndTransitionStarted || this.deathTransitionStarted){
+            return;
+        }
+
+        this.levelEndTransitionStarted = true;
+        this.playerCanInteractWithLevelEnd = false;
+        Input.disableInput();
+        this.setPauseMenuOpen(false);
+        this.emitter.fireEvent(GameEventType.STOP_SOUND, {key: this.levelMusicKey});
+
+        if(this.levelEndPromptPanel !== undefined){
+            this.levelEndPromptPanel.visible = false;
+        }
+        if(this.levelEndPromptLabel !== undefined){
+            this.levelEndPromptLabel.visible = false;
+        }
+
+        if(this.player !== undefined){
+            this.player.freeze();
+            if(this.player.hasPhysics){
+                this.player.disablePhysics();
+            }
+            this.player.setAIActive(false, {});
+        }
+
+        this.levelTransitionScreen.color = Color.BLACK;
+        this.levelTransitionScreen.alpha = 0;
+        this.levelTransitionScreen.visible = true;
+        this.deathLabel.text = labelText;
+        this.deathLabel.alpha = 0;
+        this.deathLabel.textColor = new Color(255, 255, 255, 0);
+        this.deathLabel.visible = true;
+        this.gameEndTextFadeTimer = 0;
+        this.gameEndTransitionStarted = true;
+        this.levelTransitionScreen.tweens.play("gameEndFadeIn");
+        this.deathLabel.tweens.play("gameEndFadeIn");
+        this.gameEndReturnTimer.start(MBLevel.GAME_END_RETURN_DELAY);
+    }
+
+    protected updateGameEndTransition(deltaT: number): void {
+        if(!this.gameEndTransitionStarted || this.deathLabel === undefined){
+            return;
+        }
+
+        this.gameEndTextFadeTimer += deltaT;
+        const alpha = Math.min(1, this.gameEndTextFadeTimer / MBLevel.GAME_END_TEXT_FADE_DURATION);
+        this.deathLabel.textColor.a = alpha;
     }
 
     protected updateLevelEndPrompt(): void {
@@ -2349,6 +2412,19 @@ export default abstract class MBLevel extends Scene {
             onEnd: MBEvents.PLAYER_RESPAWN
         });
 
+        this.levelTransitionScreen.tweens.add("gameEndFadeIn", {
+            startDelay: 0,
+            duration: 1600,
+            effects: [
+                {
+                    property: TweenableProperties.alpha,
+                    start: 0,
+                    end: 1,
+                    ease: EaseFunctionType.IN_OUT_QUAD
+                }
+            ]
+        });
+
         this.deathLabel = <Label>this.add.uiElement(UIElementType.LABEL, MBLayers.UI, {
             position: viewCenter.clone(),
             text: "YOU DIED"
@@ -2364,6 +2440,19 @@ export default abstract class MBLevel extends Scene {
         this.deathLabel.tweens.add("deathFadeIn", {
             startDelay: 150,
             duration: 800,
+            effects: [
+                {
+                    property: TweenableProperties.alpha,
+                    start: 0,
+                    end: 1,
+                    ease: EaseFunctionType.IN_OUT_QUAD
+                }
+            ]
+        });
+
+        this.deathLabel.tweens.add("gameEndFadeIn", {
+            startDelay: 450,
+            duration: 1200,
             effects: [
                 {
                     property: TweenableProperties.alpha,

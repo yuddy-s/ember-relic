@@ -59,7 +59,7 @@ export default class Level4 extends MBLevel {
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
     public static readonly FIRST_EMBER_SPRITE_KEY = "FIRST_EMBER_SPRITE_KEY";
     public static readonly FIRST_EMBER_SPRITE_PATH = "game_assets/spritesheets/enemies/bosses/firstEmber.json";
-    public static readonly FIRST_EMBER_SPAWN = new Vec2(1232, 352);
+    public static readonly FIRST_EMBER_SPAWN = new Vec2(1000, 352);
     public static readonly FIRST_EMBER_SCALE = new Vec2(0.575, 0.575);
     public static readonly FIRST_EMBER_HITBOX_HALF_SIZE = new Vec2(56, 72);
     public static readonly FIRST_EMBER_VISUAL_OFFSET_Y = 0;

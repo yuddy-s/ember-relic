@@ -6,9 +6,6 @@ import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
-import MBLevel2 from "./MBLevel2";
-import Level3 from "./MBLevel3";
-import Level4 from "./MBLevel4";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import HubLevel from "./HubLevel";
 import SplashScreen from "./SplashScreen";
@@ -23,6 +20,8 @@ import {
     WRETCH_SPRITE_KEY,
     WRETCH_SPRITE_PATH
 } from "../Enemies/Minions/wretch/WretchConfig";
+
+declare const require: (path: string) => { default: new (...args: any) => Scene };
 
 /**
  * The first level for Master Blaster - should be the one with the grass and the clouds.
@@ -254,13 +253,13 @@ export default class Level1 extends MBLevel {
             case ProgressTargetSceneId.HUB:
                 return HubLevel;
             case ProgressTargetSceneId.LEVEL_1:
-                return Level1;
+                return Level1; // Self-reference is safe
             case ProgressTargetSceneId.LEVEL_2:
-                return MBLevel2;
+                return require("./MBLevel2").default;
             case ProgressTargetSceneId.LEVEL_3:
-                return Level3;
+                return require("./MBLevel3").default;
             case ProgressTargetSceneId.LEVEL_4:
-                return Level4;
+                return require("./MBLevel4").default;
             default:
                 return null;
         }

@@ -22,7 +22,7 @@ import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
 import Timer from "../../Wolfie2D/Timing/Timer";
 import Color from "../../Wolfie2D/Utils/Color";
 import { EaseFunctionType } from "../../Wolfie2D/Utils/EaseFunctions";
-import PlayerController, { PlayerAnimations, PlayerStates, PlayerTweens } from "../Player/PlayerController";
+import PlayerController, { PlayerStates } from "../Player/PlayerController";
 import PlayerWeapon from "../Player/PlayerWeapon";
 
 import { MBEvents } from "../MBEvents";
@@ -37,6 +37,11 @@ import MainMenu from "./MainMenu";
 
 import Particle from "../../Wolfie2D/Nodes/Graphics/Particle";
 import SplashScreen from "./SplashScreen";
+
+const PLAYER_TWEEN_KEYS = {
+    FLIP: "FLIP",
+    DEATH: "DEATH"
+} as const;
 
 /**
  * A const object for the layer names
@@ -2838,7 +2843,7 @@ export default abstract class MBLevel extends Scene {
         // TODO - give the player their flip tween
 
         // Give the player a death animation
-        this.player.tweens.add(PlayerTweens.DEATH, {
+        this.player.tweens.add(PLAYER_TWEEN_KEYS.DEATH, {
             startDelay: 0,
             duration: 500,
             effects: [
@@ -2858,7 +2863,7 @@ export default abstract class MBLevel extends Scene {
             onEnd: MBEvents.PLAYER_DEAD
         });
 
-        this.player.tweens.add(PlayerTweens.FLIP, {
+        this.player.tweens.add(PLAYER_TWEEN_KEYS.FLIP, {
             startDelay: 0,
             duration: 300,
             effects: [{

@@ -91,7 +91,7 @@ export default class PlayerController extends StateMachineAI {
     protected readonly JUMP_BUFFER_TIME: number = 0.4;
     protected readonly WALL_LATCH_COOLDOWN: number = 0.15;
     protected readonly MAX_CONSECUTIVE_SAME_SIDE_WALL_LATCHES: number = 3;
-    protected readonly POST_HIT_INVULNERABILITY: number = 0.8;
+    protected readonly POST_HIT_INVULNERABILITY: number = 0.9;
 
     /** Health and max health for the player */
     protected _health: number;
@@ -485,7 +485,7 @@ export default class PlayerController extends StateMachineAI {
         this.dashTimer = this.DASH_DURATION;
         this.dashCooldownTimer = this.DASH_COOLDOWN;
         this.hasAirDashed = true;
-        this.grantInvulnerability(this.DASH_DURATION);
+        this.grantInvulnerability(this.DASH_DURATION + 0.3);
         this.velocity.x = this.dashDirection.x * this.DASH_SPEED;
         this.velocity.y = 0;
         this.playPlayerSfx("getDashAudioKey");

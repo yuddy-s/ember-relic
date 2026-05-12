@@ -14,9 +14,6 @@ import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
 import MainMenu from "./MainMenu";
 import MBLevel, { MBLayers } from "./MBLevel";
-import Level1 from "./MBLevel1";
-import Level2 from "./MBLevel2";
-import Level4 from "./MBLevel4";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
 import { MBEvents } from "../MBEvents";
@@ -45,6 +42,8 @@ import {
     GUARD_SPRITE_KEY,
     GUARD_SPRITE_PATH
 } from "../Enemies/Minions/guard/GuardConfig";
+
+declare const require: (path: string) => { default: new (...args: any) => Scene };
 
 export default class Level3 extends MBLevel {
     private snowBackground!: Sprite;
@@ -1226,10 +1225,10 @@ export default class Level3 extends MBLevel {
         switch (targetSceneId) {
             case ProgressTargetSceneId.HUB:
                 return HubLevel;
-            case ProgressTargetSceneId.LEVEL_1: return Level1;
-            case ProgressTargetSceneId.LEVEL_2: return Level2;
+            case ProgressTargetSceneId.LEVEL_1: return require("./MBLevel1").default;
+            case ProgressTargetSceneId.LEVEL_2: return require("./MBLevel2").default;
             case ProgressTargetSceneId.LEVEL_3: return Level3;
-            case ProgressTargetSceneId.LEVEL_4: return Level4;
+            case ProgressTargetSceneId.LEVEL_4: return require("./MBLevel4").default;
             default: return null;
         }
     }

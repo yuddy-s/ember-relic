@@ -1,0 +1,145 @@
+{
+  "name": "firstEmber",
+  "spriteSheetImage": "firstEmber.png",
+  "spriteWidth": 256,
+  "spriteHeight": 256,
+  "columns": 7,
+  "rows": 7,
+  "durationType": "time",
+  "animations": [
+    {
+      "name": "PHASE1_IDLE",
+      "repeat": true,
+      "frames": [
+        { "index": 0, "duration": 18 },
+        { "index": 1, "duration": 18 }
+      ]
+    },
+    {
+      "name": "PHASE1_WALK",
+      "repeat": true,
+      "frames": [
+        { "index": 2, "duration": 42 },
+        { "index": 3, "duration": 42 }
+      ]
+    },
+    {
+      "name": "PHASE1_SLASH",
+      "frames": [
+        { "index": 4, "duration": 18 },
+        { "index": 5, "duration": 18 },
+        { "index": 6, "duration": 22 },
+        { "index": 7, "duration": 22 },
+        { "index": 8, "duration": 30 }
+      ]
+    },
+    {
+      "name": "PHASE1_DASH",
+      "frames": [
+        { "index": 9, "duration": 16 },
+        { "index": 10, "duration": 16 },
+        { "index": 11, "duration": 20 },
+        { "index": 12, "duration": 28 }
+      ]
+    },
+    {
+      "name": "PHASE1_SLAM",
+      "frames": [
+        { "index": 13, "duration": 20 },
+        { "index": 14, "duration": 20 },
+        { "index": 15, "duration": 16 },
+        { "index": 16, "duration": 28 }
+      ]
+    },
+    {
+      "name": "PHASE1_TRANSITION",
+      "frames": [
+        { "index": 17, "duration": 18 },
+        { "index": 18, "duration": 28 }
+      ]
+    },
+    {
+      "name": "PHASE2_ENTRANCE",
+      "frames": [
+        { "index": 19, "duration": 28 },
+        { "index": 20, "duration": 20 }
+      ]
+    },
+    {
+      "name": "PHASE2_IDLE",
+      "repeat": true,
+      "frames": [
+        { "index": 21, "duration": 16 },
+        { "index": 22, "duration": 16 }
+      ]
+    },
+    {
+      "name": "PHASE2_WALK",
+      "repeat": true,
+      "frames": [
+        { "index": 43, "duration": 84 },
+        { "index": 44, "duration": 84 }
+      ]
+    },
+    {
+      "name": "PHASE2_UPPERCUT",
+      "frames": [
+        { "index": 23, "duration": 20 },
+        { "index": 24, "duration": 20 },
+        { "index": 25, "duration": 35 }
+      ]
+    },
+    {
+      "name": "PHASE2_SPIN_SLAM",
+      "frames": [
+        { "index": 26, "duration": 22 },
+        { "index": 27, "duration": 14 },
+        { "index": 28, "duration": 14 },
+        { "index": 29, "duration": 14 },
+        { "index": 30, "duration": 14 },
+        { "index": 31, "duration": 28 }
+      ]
+    },
+    {
+      "name": "PHASE2_WALL_DIVE",
+      "frames": [
+        { "index": 32, "duration": 20 },
+        { "index": 27, "duration": 148 },
+        { "index": 33, "duration": 24 },
+        { "index": 37, "duration": 40 }
+      ]
+    },
+    {
+      "name": "PHASE2_WALL_SPIN_SLAM",
+      "frames": [
+        { "index": 33, "duration": 24 },
+        { "index": 27, "duration": 148 },
+        { "index": 28, "duration": 28 },
+        { "index": 29, "duration": 28 },
+        { "index": 30, "duration": 28 },
+        { "index": 21, "duration": 42 }
+      ]
+    },
+    {
+      "name": "PHASE2_CROSS_DASH",
+      "frames": [
+        { "index": 32, "duration": 28 },
+        { "index": 33, "duration": 96 },
+        { "index": 34, "duration": 26 },
+        { "index": 35, "duration": 22 },
+        { "index": 36, "duration": 28 }
+      ]
+    },
+    {
+      "name": "DYING",
+      "frames": [
+        { "index": 37, "duration": 16 },
+        { "index": 38, "duration": 16 },
+        { "index": 39, "duration": 20 },
+        { "index": 40, "duration": 20 },
+        { "index": 41, "duration": 24 },
+        { "index": 42, "duration": 30 }
+      ]
+    }
+  ]
+}

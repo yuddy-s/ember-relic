@@ -22,9 +22,6 @@ import Level2Boss, { VorrathAnimations } from "../Bosses/Level2Boss";
 import VorrathController from "../Bosses/VorrathController";
 import MBLevel, { MBLayers } from "./MBLevel";
 import HubLevel from "./HubLevel";
-import Level1 from "./MBLevel1";
-import Level3 from "./MBLevel3";
-import Level4 from "./MBLevel4";
 import MainMenu from "./MainMenu";
 
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
@@ -32,6 +29,8 @@ import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
+
+declare const require: (path: string) => { default: new (...args: any) => Scene };
 
 /**
  * The second level for the Master Blaster. It should be the goose dungeon / cave.
@@ -898,13 +897,13 @@ export default class Level2 extends MBLevel {
             case ProgressTargetSceneId.HUB:
                 return HubLevel;
             case ProgressTargetSceneId.LEVEL_1:
-                return Level1;
+                return require("./MBLevel1").default;
             case ProgressTargetSceneId.LEVEL_2:
                 return Level2;
             case ProgressTargetSceneId.LEVEL_3:
-                return Level3;
+                return require("./MBLevel3").default;
             case ProgressTargetSceneId.LEVEL_4:
-                return Level4;
+                return require("./MBLevel4").default;
             default:
                 return null;
         }

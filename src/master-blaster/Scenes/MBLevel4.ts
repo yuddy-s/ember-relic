@@ -5,21 +5,27 @@ import Input from "../../Wolfie2D/Input/Input";
 import MBLevel, { MBLayers } from "./MBLevel";
 import { GraphicType } from "../../Wolfie2D/Nodes/Graphics/GraphicTypes";
 import Rect from "../../Wolfie2D/Nodes/Graphics/Rect";
-import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
 import Sprite from "../../Wolfie2D/Nodes/Sprites/Sprite";
+import OrthogonalTilemap from "../../Wolfie2D/Nodes/Tilemaps/OrthogonalTilemap";
 import Label from "../../Wolfie2D/Nodes/UIElements/Label";
 import { UIElementType } from "../../Wolfie2D/Nodes/UIElements/UIElementTypes";
 import RenderingManager from "../../Wolfie2D/Rendering/RenderingManager";
 import Scene from "../../Wolfie2D/Scene/Scene";
 import SceneManager from "../../Wolfie2D/Scene/SceneManager";
 import Viewport from "../../Wolfie2D/SceneGraph/Viewport";
+import Color from "../../Wolfie2D/Utils/Color";
+import { MBEvents } from "../MBEvents";
 import { MBPhysicsGroups } from "../MBPhysicsGroups";
+import FirstEmberController from "../Bosses/FirstEmberController";
+import Level4Boss, { FirstEmberAnimations } from "../Bosses/Level4Boss";
+import { DEFAULT_FIRST_EMBER_TUNING } from "../Bosses/firstEmberConfig";
+import MBAnimatedSprite from "../Nodes/MBAnimatedSprite";
+import PlayerController from "../Player/PlayerController";
 import { MBProgress, UpgradeId } from "../Progress/MBProgress";
 import HubLevel from "./HubLevel";
-import Level1 from "./MBLevel1";
-import Level2 from "./MBLevel2";
-import Level3 from "./MBLevel3";
 import { ProgressTargetSceneId } from "../Progress/MBProgressSnapshots";
+
+declare const require: (path: string) => { default: new (...args: any) => Scene };
 
 type BossGateTile = {
     col: number;
@@ -41,11 +47,48 @@ export default class Level4 extends MBLevel {
     private bossGatePromptLabel!: Label;
     private hubReturnPortal: Sprite | null = null;
     private hubReturnPortalArea: Rect | null = null;
+    private levelEndPortal: Sprite | null = null;
+    private level4Boss!: Level4Boss;
+    private level4BossSprite!: MBAnimatedSprite;
+    private firstEmberTransitionShakeTimer: number = 0;
+    private firstEmberPlayerLockActive: boolean = false;
 
     // ── Player spawn / assets ─────────────────────────────────────────────────
     public static readonly PLAYER_SPAWN = new Vec2(208, 384);
     public static readonly PLAYER_SPRITE_KEY = "PLAYER_SPRITE_KEY";
     public static readonly PLAYER_SPRITE_PATH = "game_assets/spritesheets/knight.json";
+    public static readonly FIRST_EMBER_SPRITE_KEY = "FIRST_EMBER_SPRITE_KEY";
+    public static readonly FIRST_EMBER_SPRITE_PATH = "game_assets/spritesheets/enemies/bosses/firstEmber.json";
+    public static readonly FIRST_EMBER_SPAWN = new Vec2(1232, 352);
+    public static readonly FIRST_EMBER_SCALE = new Vec2(0.575, 0.575);
+    public static readonly FIRST_EMBER_HITBOX_HALF_SIZE = new Vec2(56, 72);
+    public static readonly FIRST_EMBER_VISUAL_OFFSET_Y = 0;
+    public static readonly FIRST_EMBER_NAME = "The First Ember";
+    public static readonly FIRST_EMBER_PHASE_ONE_HEALTH = DEFAULT_FIRST_EMBER_TUNING.transition.phaseOneMaxHealth;
+    public static readonly FIRST_EMBER_LEFT_WALL_CLING = new Vec2(576, 96);
+    public static readonly FIRST_EMBER_RIGHT_WALL_CLING = new Vec2(1248, 96);
+    public static readonly FIRST_EMBER_WALL_DIVE_LANDINGS = [
+        new Vec2(704, 170),
+        new Vec2(704, 399),
+        new Vec2(912, 272),
+        new Vec2(912, 399),
+        new Vec2(1120, 170),
+        new Vec2(1120, 399)
+    ];
+    public static readonly FIRST_EMBER_WALL_SPIN_SLAM_LANDINGS = [
+        new Vec2(704, 170),
+        new Vec2(912, 272),
+        new Vec2(1120, 170)
+    ];
+    public static readonly FIRST_EMBER_EXPLOSION_HAZARD_POINTS = [
+        new Vec2(704, 170),
+        new Vec2(704, 399),
+        new Vec2(912, 272),
+        new Vec2(912, 399),
+        new Vec2(1120, 170),
+        new Vec2(1120, 399)
+    ];
+    public static readonly FIRST_EMBER_TRANSITION_SHAKE_AMOUNT = 0.05;
 
     // ── Tilemap ───────────────────────────────────────────────────────────────
     public static readonly TILEMAP_KEY = "LEVEL4";
@@ -72,13 +115,29 @@ export default class Level4 extends MBLevel {
 
     // ── Audio ─────────────────────────────────────────────────────────────────
     public static readonly LEVEL_MUSIC_KEY = "LEVEL_MUSIC";
-    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/level2_music.wav";
+    public static readonly LEVEL_MUSIC_PATH = "game_assets/music/main_Menu_music.wav";
     public static readonly JUMP_AUDIO_KEY = "PLAYER_JUMP";
     public static readonly JUMP_AUDIO_PATH = "game_assets/sounds/jump.wav";
+    public static readonly DASH_AUDIO_KEY = "PLAYER_DASH";
+    public static readonly DASH_AUDIO_PATH = "game_assets/sounds/dash.wav";
+    public static readonly ATTACK_AUDIO_KEY = "PLAYER_ATTACK";
+    public static readonly ATTACK_AUDIO_PATH = "game_assets/sounds/attack.wav";
+    public static readonly DAMAGE_AUDIO_KEY = "PLAYER_DAMAGE";
+    public static readonly DAMAGE_AUDIO_PATH = "game_assets/sounds/taking_damage.wav";
     public static readonly TILE_DESTROYED_KEY = "TILE_DESTROYED";
     public static readonly TILE_DESTROYED_PATH = "game_assets/sounds/switch.wav";
     public static readonly DYING_AUDIO_KEY = "DYING_AUDIO";
     public static readonly DYING_AUDIO_PATH = "game_assets/sounds/dying.wav";
+    public static readonly FIRST_EMBER_PHASE1_DASH_AUDIO_KEY = "FIRST_EMBER_PHASE1_DASH";
+    public static readonly FIRST_EMBER_PHASE1_DASH_AUDIO_PATH = "game_assets/sounds/phase1_dash.wav";
+    public static readonly FIRST_EMBER_PHASE2_DASH_AUDIO_KEY = "FIRST_EMBER_PHASE2_DASH";
+    public static readonly FIRST_EMBER_PHASE2_DASH_AUDIO_PATH = "game_assets/sounds/phase2_dash.wav";
+    public static readonly FIRST_EMBER_SLAM_AUDIO_KEY = "FIRST_EMBER_SLAM";
+    public static readonly FIRST_EMBER_SLAM_AUDIO_PATH = "game_assets/sounds/slam.wav";
+    public static readonly FIRST_EMBER_TRANSITION_AUDIO_KEY = "FIRST_EMBER_TRANSITION";
+    public static readonly FIRST_EMBER_TRANSITION_AUDIO_PATH = "game_assets/sounds/transition.wav";
+    public static readonly FIRST_EMBER_EXPLOSION_IMAGE_KEY = "FIRST_EMBER_EXPLOSION";
+    public static readonly FIRST_EMBER_EXPLOSION_IMAGE_PATH = "game_assets/art/lava-pillar.png";
 
     public constructor(
         viewport: Viewport,
@@ -99,6 +158,9 @@ export default class Level4 extends MBLevel {
 
         this.levelMusicKey = Level4.LEVEL_MUSIC_KEY;
         this.jumpAudioKey = Level4.JUMP_AUDIO_KEY;
+        this.dashAudioKey = Level4.DASH_AUDIO_KEY;
+        this.attackAudioKey = Level4.ATTACK_AUDIO_KEY;
+        this.damageAudioKey = Level4.DAMAGE_AUDIO_KEY;
         this.tileDestroyedAudioKey = Level4.TILE_DESTROYED_KEY;
         this.dyingAudioKey = Level4.DYING_AUDIO_KEY;
 
@@ -109,7 +171,9 @@ export default class Level4 extends MBLevel {
     public loadScene(): void {
         this.load.tilemap(this.tilemapKey, Level4.TILEMAP_PATH);
         this.load.spritesheet(this.playerSpriteKey, Level4.PLAYER_SPRITE_PATH);
+        this.load.spritesheet(Level4.FIRST_EMBER_SPRITE_KEY, Level4.FIRST_EMBER_SPRITE_PATH);
         this.load.image(Level4.PORTAL_IMAGE_KEY, Level4.PORTAL_IMAGE_PATH);
+        this.load.image(Level4.FIRST_EMBER_EXPLOSION_IMAGE_KEY, Level4.FIRST_EMBER_EXPLOSION_IMAGE_PATH);
 
         // Upgrade icons
         this.load.image(MBLevel.LANTERN_ICON_KEY, MBLevel.LANTERN_ICON_PATH);
@@ -128,15 +192,30 @@ export default class Level4 extends MBLevel {
         // Audio
         this.load.audio(this.levelMusicKey, Level4.LEVEL_MUSIC_PATH);
         this.load.audio(this.jumpAudioKey, Level4.JUMP_AUDIO_PATH);
+        this.load.audio(this.dashAudioKey, Level4.DASH_AUDIO_PATH);
+        this.load.audio(this.attackAudioKey, Level4.ATTACK_AUDIO_PATH);
+        this.load.audio(this.damageAudioKey, Level4.DAMAGE_AUDIO_PATH);
         this.load.audio(this.tileDestroyedAudioKey, Level4.TILE_DESTROYED_PATH);
         this.load.audio(this.dyingAudioKey, Level4.DYING_AUDIO_PATH);
+        this.load.audio(Level4.FIRST_EMBER_PHASE1_DASH_AUDIO_KEY, Level4.FIRST_EMBER_PHASE1_DASH_AUDIO_PATH);
+        this.load.audio(Level4.FIRST_EMBER_PHASE2_DASH_AUDIO_KEY, Level4.FIRST_EMBER_PHASE2_DASH_AUDIO_PATH);
+        this.load.audio(Level4.FIRST_EMBER_SLAM_AUDIO_KEY, Level4.FIRST_EMBER_SLAM_AUDIO_PATH);
+        this.load.audio(Level4.FIRST_EMBER_TRANSITION_AUDIO_KEY, Level4.FIRST_EMBER_TRANSITION_AUDIO_PATH);
     }
 
     public unloadScene(): void {
         this.resourceManager.keepSpritesheet(this.playerSpriteKey);
         this.resourceManager.keepAudio(this.jumpAudioKey);
+        this.resourceManager.keepAudio(this.dashAudioKey);
+        this.resourceManager.keepAudio(this.attackAudioKey);
+        this.resourceManager.keepAudio(this.damageAudioKey);
         this.resourceManager.keepAudio(this.dyingAudioKey);
         this.resourceManager.keepAudio(this.tileDestroyedAudioKey);
+        this.resourceManager.keepAudio(Level4.FIRST_EMBER_PHASE1_DASH_AUDIO_KEY);
+        this.resourceManager.keepAudio(Level4.FIRST_EMBER_PHASE2_DASH_AUDIO_KEY);
+        this.resourceManager.keepAudio(Level4.FIRST_EMBER_SLAM_AUDIO_KEY);
+        this.resourceManager.keepAudio(Level4.FIRST_EMBER_TRANSITION_AUDIO_KEY);
+        this.resourceManager.keepImage(Level4.FIRST_EMBER_EXPLOSION_IMAGE_KEY);
     }
 
     public startScene(): void {
@@ -146,7 +225,21 @@ export default class Level4 extends MBLevel {
 
     public updateScene(deltaT: number): void {
         super.updateScene(deltaT);
+        this.updateFirstEmberTransitionPresentation(deltaT);
         this.updateBossGate(deltaT);
+
+        if(this.level4Boss !== undefined && this.level4Boss.isDefeated()){
+            const dyingStillPlaying =
+                this.level4BossSprite !== undefined &&
+                this.level4BossSprite.animation.isPlaying(FirstEmberAnimations.DYING);
+
+            if(!dyingStillPlaying && this.levelEndPortal !== null && !this.levelEndPortal.visible){
+                this.levelEndPortal.visible = true;
+                if(this.levelEndArea !== undefined){
+                    this.levelEndArea.enablePhysics();
+                }
+            }
+        }
     }
 
     protected initializeTilemap(): void {
@@ -210,6 +303,8 @@ export default class Level4 extends MBLevel {
             frameRow * Level4.PORTAL_FRAME_SIZE.y
         ));
         portal.position.copy(this.levelEndPosition);
+        portal.visible = false;
+        this.levelEndPortal = portal;
 
         this.hubReturnPortal = this.createGreenPortal(Level4.HUB_RETURN_PORTAL_POSITION);
         this.hubReturnPortalArea = <Rect>this.add.graphic(GraphicType.RECT, MBLayers.PRIMARY, {
@@ -225,6 +320,7 @@ export default class Level4 extends MBLevel {
         });
         this.levelEndArea.addPhysics(undefined, undefined, false, true);
         this.levelEndArea.visible = false;
+        this.levelEndArea.disablePhysics();
     }
 
     protected createGreenPortal(position: Vec2): Sprite {
@@ -501,15 +597,104 @@ export default class Level4 extends MBLevel {
         this.emitter.fireEvent(GameEventType.PLAY_SOUND, {key: this.tileDestroyedAudioKey, loop: false, holdReference: false});
     }
 
+    protected initializeBoss(): void {
+        this.level4Boss = new Level4Boss(Level4.FIRST_EMBER_NAME, Level4.FIRST_EMBER_PHASE_ONE_HEALTH);
+        this.boss = this.level4Boss;
+        this.level4BossSprite = this.add.animatedSprite(Level4.FIRST_EMBER_SPRITE_KEY, MBLayers.PRIMARY);
+        this.level4BossSprite.position.copy(Level4.FIRST_EMBER_SPAWN);
+        this.level4BossSprite.scale.copy(Level4.FIRST_EMBER_SCALE);
+
+        const scaledBossHitbox = new Vec2(
+            Level4.FIRST_EMBER_HITBOX_HALF_SIZE.x * Level4.FIRST_EMBER_SCALE.x,
+            Level4.FIRST_EMBER_HITBOX_HALF_SIZE.y * Level4.FIRST_EMBER_SCALE.y
+        );
+
+        this.placeBossOnFloor(scaledBossHitbox);
+        this.level4BossSprite.addPhysics(
+            new AABB(this.level4BossSprite.position.clone(), scaledBossHitbox),
+            new Vec2(0, -Level4.FIRST_EMBER_VISUAL_OFFSET_Y),
+            false,
+            false
+        );
+        this.level4BossSprite.position.y += Level4.FIRST_EMBER_VISUAL_OFFSET_Y;
+        this.level4BossSprite.setGroup(MBPhysicsGroups.BOSS);
+        this.level4BossSprite.setTrigger(MBPhysicsGroups.PLAYER_WEAPON, MBEvents.BOSS_PARTICLE_HIT, "");
+        this.level4BossSprite.animation.play(FirstEmberAnimations.PHASE1_IDLE, true);
+        this.level4BossSprite.addAI(FirstEmberController, {
+            bossState: this.level4Boss,
+            player: this.player,
+            tilemap: this.wallsLayerKey,
+            tuning: DEFAULT_FIRST_EMBER_TUNING,
+            soundKeys: {
+                phase1Dash: Level4.FIRST_EMBER_PHASE1_DASH_AUDIO_KEY,
+                phase2Dash: Level4.FIRST_EMBER_PHASE2_DASH_AUDIO_KEY,
+                slam: Level4.FIRST_EMBER_SLAM_AUDIO_KEY,
+                transition: Level4.FIRST_EMBER_TRANSITION_AUDIO_KEY
+            },
+            phaseTwoScriptedPoints: {
+                wallClingLeft: Level4.FIRST_EMBER_LEFT_WALL_CLING,
+                wallClingRight: Level4.FIRST_EMBER_RIGHT_WALL_CLING,
+                wallDiveLandings: Level4.FIRST_EMBER_WALL_DIVE_LANDINGS,
+                wallSpinSlamLandings: Level4.FIRST_EMBER_WALL_SPIN_SLAM_LANDINGS
+            },
+            explosionHazardImageKey: Level4.FIRST_EMBER_EXPLOSION_IMAGE_KEY,
+            explosionHazardPoints: Level4.FIRST_EMBER_EXPLOSION_HAZARD_POINTS
+        });
+    }
+
+    public onFirstEmberPhaseTransitionStart(duration: number): void {
+        this.firstEmberTransitionShakeTimer = Math.max(this.firstEmberTransitionShakeTimer, duration);
+        this.firstEmberPlayerLockActive = true;
+        Input.disableInput();
+
+        if(this.player !== undefined){
+            this.player.freeze();
+            if(this.player.hasPhysics){
+                this.player.disablePhysics();
+            }
+            this.player.setAIActive(false, {});
+        }
+
+        const playerController = this.player !== undefined
+            ? this.player.ai as PlayerController
+            : undefined;
+        if(playerController !== undefined){
+            playerController.velocity = Vec2.ZERO;
+        }
+    }
+
+    public onFirstEmberPhaseTwoEntranceComplete(): void {
+        this.firstEmberPlayerLockActive = false;
+        this.firstEmberTransitionShakeTimer = 0;
+        this.viewport.setZoomLevel(Level4.LEVEL_ZOOM);
+
+        if(this.player !== undefined){
+            this.player.unfreeze();
+            if(this.player.hasPhysics){
+                this.player.enablePhysics();
+            }
+            this.player.setAIActive(true, {});
+        }
+
+        const playerController = this.player !== undefined
+            ? this.player.ai as PlayerController
+            : undefined;
+        if(playerController !== undefined){
+            playerController.velocity = Vec2.ZERO;
+        }
+
+        Input.enableInput();
+    }
+
     protected resolveProgressTargetScene(
         targetSceneId: ProgressTargetSceneId
     ): (new (...args: any) => Scene) | null {
         switch (targetSceneId) {
             case ProgressTargetSceneId.HUB:
                 return HubLevel;
-            case ProgressTargetSceneId.LEVEL_1: return Level1;
-            case ProgressTargetSceneId.LEVEL_2: return Level2;
-            case ProgressTargetSceneId.LEVEL_3: return Level3;
+            case ProgressTargetSceneId.LEVEL_1: return require("./MBLevel1").default;
+            case ProgressTargetSceneId.LEVEL_2: return require("./MBLevel2").default;
+            case ProgressTargetSceneId.LEVEL_3: return require("./MBLevel3").default;
             case ProgressTargetSceneId.LEVEL_4: return Level4;
             default: return null;
         }
@@ -517,5 +702,52 @@ export default class Level4 extends MBLevel {
 
     protected getPlayerDeathDestination(): new (...args: any) => Scene {
         return HubLevel;
+    }
+
+    protected getBossDamageTarget(): MBAnimatedSprite | null {
+        return this.level4BossSprite ?? null;
+    }
+
+    protected placeBossOnFloor(hitboxHalfSize: Vec2): void {
+        if(this.walls === undefined || this.level4BossSprite === undefined){
+            return;
+        }
+
+        const tileSize = this.walls.getTileSize();
+        const worldHeight = this.walls.getDimensions().y;
+        const col = this.walls.getColRowAt(this.level4BossSprite.position).x;
+        const startRow = Math.max(0, this.walls.getColRowAt(this.level4BossSprite.position).y - 6);
+
+        for(let row = startRow; row < worldHeight; row++){
+            if(!this.walls.isTileCollidable(col, row)){
+                continue;
+            }
+
+            const tileTopY = row * tileSize.y * this.tilemapScale.y;
+            this.level4BossSprite.position.y = tileTopY - hitboxHalfSize.y - 1;
+            return;
+        }
+    }
+
+    private updateFirstEmberTransitionPresentation(deltaT: number): void {
+        if(this.firstEmberTransitionShakeTimer > 0){
+            this.firstEmberTransitionShakeTimer = Math.max(0, this.firstEmberTransitionShakeTimer - deltaT);
+            this.viewport.setZoomLevel(
+                Level4.LEVEL_ZOOM + (Math.random() * 2 - 1) * Level4.FIRST_EMBER_TRANSITION_SHAKE_AMOUNT
+            );
+        } else {
+            this.viewport.setZoomLevel(Level4.LEVEL_ZOOM);
+        }
+
+        if(!this.firstEmberPlayerLockActive){
+            return;
+        }
+
+        const playerController = this.player !== undefined
+            ? this.player.ai as PlayerController
+            : undefined;
+        if(playerController !== undefined){
+            playerController.velocity = Vec2.ZERO;
+        }
     }
 }

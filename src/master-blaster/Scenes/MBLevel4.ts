@@ -50,6 +50,7 @@ export default class Level4 extends MBLevel {
     private levelEndPortal: Sprite | null = null;
     private level4Boss!: Level4Boss;
     private level4BossSprite!: MBAnimatedSprite;
+    private level4BossProgressRecorded: boolean = false;
     private firstEmberTransitionShakeTimer: number = 0;
     private firstEmberPlayerLockActive: boolean = false;
 
@@ -221,6 +222,7 @@ export default class Level4 extends MBLevel {
     public startScene(): void {
         super.startScene();
         this.travelPortalDestination = HubLevel;
+        this.level4BossProgressRecorded = MBProgress.hasDefeatedBoss(this.level4Boss.id);
     }
 
     public updateScene(deltaT: number): void {
@@ -229,6 +231,11 @@ export default class Level4 extends MBLevel {
         this.updateBossGate(deltaT);
 
         if(this.level4Boss !== undefined && this.level4Boss.isDefeated()){
+            if(!this.level4BossProgressRecorded){
+                MBProgress.defeatBoss(this.level4Boss.id);
+                this.level4BossProgressRecorded = true;
+            }
+
             const dyingStillPlaying =
                 this.level4BossSprite !== undefined &&
                 this.level4BossSprite.animation.isPlaying(FirstEmberAnimations.DYING);
